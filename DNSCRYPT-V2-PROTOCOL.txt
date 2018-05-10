@@ -449,6 +449,7 @@ Known open source implementations of the DNSCrypt version 2 protocol are:
 - pcap_dnsproxy - client-side implementation in C++
 - dnscrypt-python - client-side implementation in Python
 - dnspython-dnscrypt - client-side implementation in Python
+- YourFriendlyDNS - client-side implementation in C++
 
 Known closed source implementations of the protocol :
 
