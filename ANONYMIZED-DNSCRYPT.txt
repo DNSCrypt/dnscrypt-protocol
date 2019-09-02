@@ -115,3 +115,4 @@ run on port 443, it may be reasonable to allow only that port.
 ------------------
 
 - rust-dnscrypt-server (TBA)
+- dnscrypt-proxy (TBA)
