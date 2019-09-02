@@ -157,7 +157,8 @@ or
 --------------------------
 
 Client queries over TCP only differ from queries sent over UDP by the
-padding length computation.
+padding length computation and by the fact that they are prefixed with
+their length, encoded as two little-endian bytes.
 
 Unlike UDP queries, a query sent over TCP can be shorter than the
 response.
@@ -242,8 +243,9 @@ cannot be verified must be ignored.
 Any client-supplied nonce must be accepted. However, a resolver can
 ignore or refuse queries encrypted using untrusted public keys.
 
-Responses must be padded using the algorithm described in section 8
-and encrypted as described in section 7.
+Responses must be padded using the algorithm described in section 8,
+encrypted as described in section 7, and prefixed with their length
+encoded as two little-endian bytes.
 
 Responses must be send unmodified even if their length exceeds the
 length of the client query.
