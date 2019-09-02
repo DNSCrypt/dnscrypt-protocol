@@ -1,6 +1,6 @@
 
-Anonymous DNSCrypt specification
-================================
+Anonymized DNSCrypt specification
+=================================
 
 1. Protocol overview
 --------------------
@@ -15,10 +15,10 @@ addresses.
 
 A common way to prevent this is to use DNSCrypt over Tor or SOCKS
 proxies. However, Tor significantly increases the latency of DNS
-response. And public SOCKS proxies are difficult to operate, as they
-can be easily abused for purposes unrelated to DNS.
+responses. And public SOCKS proxies are difficult to operate, as they
+can easily be abused for purposes unrelated to DNS.
 
-Anonymous DNSCrypt is a simple extension to the DNSCrypt v2 protocol,
+Anonymized DNSCrypt is a simple extension to the DNSCrypt v2 protocol,
 allowing queries and responses to be relayed by an intermediate server.
 
 [Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
@@ -40,7 +40,7 @@ address and port.
 2. Client queries
 -----------------
 
-The Anonymous DNSCrypt protocol can use the UDP and TCP transport
+The Anonymized DNSCrypt protocol can use the UDP and TCP transport
 protocols, and can easily be implemented on top of existing DNSCrypt
 client and server implementations.
 
@@ -48,7 +48,7 @@ Recall that the format of a DNSCrypt client query is the following:
 
 <dnscrypt-query> ::= <client-magic> <client-pk> <client-nonce> <encrypted-query>
 
-An Anonymous DNSCrypt query is a standard DNSCrypt query, sent to a
+An Anonymized DNSCrypt query is a standard DNSCrypt query, sent to a
 relay with a prefix containing information about the server address:
 
 <anondnscrypt-query> ::= <anon-magic> <server-ip> <server-port> <dnscrypt-query>
@@ -101,7 +101,7 @@ Once a response from the server has been received, the relay should:
 -----------------------------
 
 Clients choose the relay they want to use, as well as the server. As
-not doing so would defeat the purpose of Anonymous DNSCrypt, users
+not doing so would defeat the purpose of Anonymized DNSCrypt, users
 should carefully choose them so that they are operated by different
 individuals, companies or organizations. Having these services on
 different networks is also recommended.
