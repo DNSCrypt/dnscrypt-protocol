@@ -1,0 +1,117 @@
+
+Anonymous DNSCrypt specification
+================================
+
+1. Protocol overview
+--------------------
+
+DNSCrypt is a protocol that secures communications between clients and
+recursive DNS resolvers.
+
+While the communications themselves are secure, and while the
+stateless nature of the DNSCrypt protocol helps against fingerprinting
+individual devices, DNS server operators can still observe client IP
+addresses.
+
+A common way to prevent this is to use DNSCrypt over Tor or SOCKS
+proxies. However, Tor significantly increases the latency of DNS
+response. And public SOCKS proxies are difficult to operate, as they
+can be easily abused for purposes unrelated to DNS.
+
+Anonymous DNSCrypt is a simple extension to the DNSCrypt v2 protocol,
+allowing queries and responses to be relayed by an intermediate server.
+
+[Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
+[Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
+
+The client encrypts queries using the server public key as in the
+standard DNSCrypt protocol. The relay only passively forwards encrypted
+packets, and doesn't know the shared secret. As a result:
+
+- A relay doesn't learn anything about DNS queries and responses being
+exchanged between clients and servers. It cannot tamper with them
+either.
+- A server doesn't learn anything about client IP addresses. The only
+IP addresses it can observe are addresses of relays.
+
+A DNSCrypt server can simultaneously act as a relay, on the same IP
+address and port.
+
+2. Client queries
+-----------------
+
+The Anonymous DNSCrypt protocol can use the UDP and TCP transport
+protocols, and can easily be implemented on top of existing DNSCrypt
+client and server implementations.
+
+Recall that the format of a DNSCrypt client query is the following:
+
+<dnscrypt-query> ::= <client-magic> <client-pk> <client-nonce> <encrypted-query>
+
+An Anonymous DNSCrypt query is a standard DNSCrypt query, sent to a
+relay with a prefix containing information about the server address:
+
+<anondnscrypt-query> ::= <anon-magic> <server-ip> <server-port> <dnscrypt-query>
+
+<anon-magic> ::= 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
+
+<server-ip> ::= a 16 bytes encoded IPv6 address. IPv4 addresses should
+be mapped to IPv6 (::ffff:<ipv4 address>).
+
+<server-port> ::= the server port number, encoded as two bytes in big-endian.
+
+For example, a query for a server whose IP address is 192.0.2.1
+(::ffff:c000:0201) and answering on port 443 (0x01bb) should be sent to a
+relay as follows:
+
+0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
+0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
+0x01 0xbb
+<dnscrypt-query>
+
+Queries over UDP are sent as-is. Queries over TCP are prefixed by
+their length, encoded as two bytes in big-endian.
+
+3. Relays
+---------
+
+Relays must accept queries both over TCP and UDP. They must
+communicate with upstream servers over UDP, even if client queries
+were originally sent over TCP.
+
+If a packet starting with <anon-magic> is received by a relay, the
+relay must:
+
+- decode the target server IP and port number
+- validate that the IP address is not in a private range and that the
+port number is in an allowed range. If this is not the case, the relay
+must immediately respond to clients with an empty packet.
+- validate that <dnscrypt-query> cannot be confused with the QUIC
+protocol. In particular, it shouldn't start with 0x00000001. If this
+is the case, the relay must immediately respond with an empty packet.
+- otherwise, forward <dnscrypt-query> unmodified to the server.
+
+Once a response from the server has been received, the relay should:
+
+- validate that the response starts with <resolver-magic> (0x72 0x36
+0x66 0x6e 0x76 0x57 0x6a 0x38) followed by <client-nonce>
+- forward the entire response unmodified to the client
+
+4. Operational considerations
+-----------------------------
+
+Clients choose the relay they want to use, as well as the server. As
+not doing so would defeat the purpose of Anonymous DNSCrypt, users
+should carefully choose them so that they are operated by different
+individuals, companies or organizations. Having these services on
+different networks is also recommended.
+
+Relay operators should refuse forwarding to reserved IP ranges. Server
+ports may also be restricted. In particular, port numbers used by
+popular UDP services should be disallowed. As most DNSCrypt servers
+run on port 443, it may be reasonable to allow only that port.
+
+5. Implementations
+------------------
+
+- rust-dnscrypt-server (TBA)
