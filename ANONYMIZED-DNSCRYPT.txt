@@ -103,8 +103,8 @@ Once a response from the server has been received, the relay should:
 Clients choose the relay they want to use, as well as the server. As
 not doing so would defeat the purpose of Anonymized DNSCrypt, users
 should carefully choose them so that they are operated by different
-individuals, companies or organizations. Having these services on
-different networks is also recommended.
+entities. Having these services on different networks is also
+recommended.
 
 Relay operators should refuse forwarding to reserved IP ranges. Server
 ports may also be restricted. In particular, port numbers used by
