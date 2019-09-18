@@ -139,9 +139,9 @@ Prior to encryption, queries are padded using the ISO/IEC 7816-4
 format. The padding starts with a byte valued 0x80 followed by a
 variable number of NUL bytes.
 
-The length of <client-query-pad> is randomly chosen between 0 and 256
-bytes, but the total length of <client-query> <client-query-pad> must be
-a multiple of 64 bytes.
+The length of <client-query-pad> is randomly chosen between 1 and 256
+bytes (including the leading 0x80), but the total length of <client-query>
+<client-query-pad> must be a multiple of 64 bytes.
 
 For example, an originally unpadded 56-bytes DNS query can be padded as:
 
@@ -212,8 +212,9 @@ variable number of NUL bytes.
 The total length of <resolver-response> <resolver-response-pad> must
 be a multiple of 64 bytes.
 
-The length of <resolver-response-pad> must be between 0 and 256 bytes,
-and must be constant for a given (<resolver-sk>, <client-nonce>) tuple.
+The length of <resolver-response-pad> must be between 1 and 256 bytes
+(including the leading 0x80), and must be constant for a given
+(<resolver-sk>, <client-nonce>) tuple.
 
 A pseudo random function can be used to satisfy this requirement.
 
