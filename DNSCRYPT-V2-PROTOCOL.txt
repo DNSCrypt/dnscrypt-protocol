@@ -214,9 +214,8 @@ be a multiple of 64 bytes.
 
 The length of <resolver-response-pad> must be between 1 and 256 bytes
 (including the leading 0x80), and must be constant for a given
-(<resolver-sk>, <client-nonce>) tuple.
-
-A pseudorandom function can be used to satisfy this requirement.
+(<resolver-sk>, <client-nonce>) tuple. A pseudorandom function can be
+used to satisfy this requirement.
 
 9. Resolver responses over UDP
 ------------------------------
