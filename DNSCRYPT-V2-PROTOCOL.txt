@@ -449,13 +449,15 @@ sessions, the TCP Fast Open mechanism should be used where available.
 Known open source implementations of the DNSCrypt version 2 protocol are:
 
 - dnscrypt-wrapper - server-side implementation in C
-- powerdns dnsdist - a DNS loadbalancer that provides server-side DNSCrypt
+- Encrypted DNS Server - server-side implementation in Rust
+- PowerDNS dnsdist - a DNS loadbalancer that provides server-side DNSCrypt
 - unbound - a validating, caching resolver that provides server-side DNSCrypt
-- dnscrypt-proxy - client-side implementation in C
+- dnscrypt-proxy - client-side implementation in Go
 - pcap_dnsproxy - client-side implementation in C++
 - dnscrypt-python - client-side implementation in Python
 - dnspython-dnscrypt - client-side implementation in Python
 - YourFriendlyDNS - client-side implementation in C++
+- Adguard - client-side implementation in Go
 
 Known closed source implementations of the protocol :
 
