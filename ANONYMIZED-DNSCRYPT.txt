@@ -115,5 +115,5 @@ run on port 443, it may be reasonable to allow only that port.
 5. Implementations
 ------------------
 
-- rust-dnscrypt-server (TBA)
-- dnscrypt-proxy (TBA)
+- encrypted-dnscrypt-server
+- dnscrypt-proxy
