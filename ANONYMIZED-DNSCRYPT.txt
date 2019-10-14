@@ -86,6 +86,7 @@ relay must:
 - validate that the IP address is not in a private range and that the
 port number is in an allowed range. If this is not the case, the relay
 must immediately respond to clients with an empty packet.
+- validate that <dnscrypt-query> doesn't start with <anon-magic>.
 - validate that <dnscrypt-query> cannot be confused with the QUIC
 protocol. In particular, it shouldn't start with 0x00000001. If this
 is the case, the relay must immediately respond with an empty packet.
