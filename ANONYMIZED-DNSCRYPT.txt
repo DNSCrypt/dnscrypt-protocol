@@ -92,10 +92,14 @@ protocol. In particular, it shouldn't start with 0x00000001. If this
 is the case, the relay must immediately respond with an empty packet.
 - otherwise, forward <dnscrypt-query> unmodified to the server.
 
-Once a response from the server has been received, the relay should:
+Once a response from the server has been received, the relay must:
 
-- validate that the response starts with <resolver-magic> (0x72 0x36
-0x66 0x6e 0x76 0x57 0x6a 0x38) followed by <client-nonce>
+- validate that the response:
+  - either starts with <resolver-magic>
+    (0x72 0x36 0x66 0x6e 0x76 0x57 0x6a 0x38) followed by <client-nonce>
+  - or that the response starts with a certificate response
+    (* * * * 0x00 0x01 0x00 0x01 0x00 0x00 0x00 0x00 0x01 0x32 0x0d 0x64
+     0x6e 0x73 0x63 0x72 0x79 0x70 0x74 0x2d 0x63 0x65 0x72 0x74)
 - forward the entire response unmodified to the client
 
 4. Operational considerations
