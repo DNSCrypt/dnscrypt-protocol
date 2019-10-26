@@ -112,8 +112,10 @@ ports may also be restricted. In particular, port numbers used by
 popular UDP services should be disallowed. As most DNSCrypt servers
 run on port 443, it may be reasonable to allow only that port.
 
-5. Implementations
-------------------
+5. Current implementations and additional resources
+---------------------------------------------------
 
-- encrypted-dnscrypt-server
-- dnscrypt-proxy
+- encrypted-dnscrypt-server: https://github.com/jedisct1/encrypted-dns-server
+- dnscrypt-proxy: https://github.com/DNSCrypt/dnscrypt-proxy
+- a list of DNS relays:
+  https://github.com/DNSCrypt/dnscrypt-resolvers/blob/master/v2/relays.md
