@@ -458,7 +458,9 @@ Known open source implementations of the DNSCrypt version 2 protocol are:
 - dnspython-dnscrypt - client-side implementation in Python
 - YourFriendlyDNS - client-side implementation in C++
 - Adguard - client-side implementation in Go
+- reklatsmasters/dnscrypt - client implementation in pure JavaScript
 
 Known closed source implementations of the protocol :
 
 - OpenNIC Fusl servers - server-side implementation as a Linux kernel module
+- Cisco OpenDNS - server-side implementation for djbdns
