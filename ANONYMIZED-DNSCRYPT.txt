@@ -124,4 +124,4 @@ run on port 443, it may be reasonable to allow only that port.
 - encrypted-dnscrypt-server: https://github.com/jedisct1/encrypted-dns-server
 - dnscrypt-proxy: https://github.com/DNSCrypt/dnscrypt-proxy
 - a list of DNS relays:
-  https://github.com/DNSCrypt/dnscrypt-resolvers/blob/master/v2/relays.md
+  https://github.com/DNSCrypt/dnscrypt-resolvers/blob/master/v3/relays.md
