@@ -440,9 +440,6 @@ DNS queries. In addition, DNSCrypt offers some mitigation against
 abusing resolvers to conduct DDoS attacks. Accepting unauthenticated
 queries on the same port would defeat this mechanism.
 
-As this version of the protocol may require many short-lived TCP
-sessions, the TCP Fast Open mechanism should be used where available.
-
 14. Implementations
 -------------------
 
