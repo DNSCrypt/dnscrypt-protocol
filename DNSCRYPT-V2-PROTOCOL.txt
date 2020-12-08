@@ -400,8 +400,8 @@ or
 - a certificate with a higher serial number than the current one is
 available.
 
-13. Operational perspective
----------------------------
+13. Operational considerations
+------------------------------
 
 Special attention should be paid to the uniqueness of the generated
 secret keys.
