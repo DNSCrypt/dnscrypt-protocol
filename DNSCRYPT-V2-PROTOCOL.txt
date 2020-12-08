@@ -440,6 +440,11 @@ DNS queries. In addition, DNSCrypt offers some mitigation against
 abusing resolvers to conduct DDoS attacks. Accepting unauthenticated
 queries on the same port would defeat this mechanism.
 
+As a client is likely to reuse the same key pair many times, servers are
+encouraged to cache shared keys instead of performing the X25519
+operation for each query. This makes the computational overhead of
+DNSCrypt negligible compared to plain DNS.
+
 14. Implementations
 -------------------
 
