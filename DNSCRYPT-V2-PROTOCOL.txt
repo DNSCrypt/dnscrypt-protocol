@@ -156,9 +156,12 @@ or
 6. Client queries over TCP
 --------------------------
 
-Client queries over TCP only differ from queries sent over UDP by the
+Encrypted client queries over TCP only differ from queries sent over UDP by the
 padding length computation and by the fact that they are prefixed with
-their length, encoded as two little-endian bytes.
+their length, encoded as two big-endian bytes.
+
+Cleartext DNS query payloads are not prefixed by their length, 
+even when sent over TCP.  
 
 Unlike UDP queries, a query sent over TCP can be shorter than the
 response.
@@ -248,8 +251,11 @@ Any client-supplied nonce must be accepted. However, a resolver can
 ignore or refuse queries encrypted using untrusted public keys.
 
 Responses must be padded using the algorithm described in section 8,
-encrypted as described in section 7, and prefixed with their length
-encoded as two little-endian bytes.
+encrypted as described in section 7. Encrypted responses are prefixed 
+with their length encoded as two big-endian bytes.
+
+Cleartext DNS response payloads are not prefixed by their length, 
+even when sent over TCP.  
 
 Responses must be send unmodified even if their length exceeds the
 length of the client query.
