@@ -127,34 +127,23 @@ The default port for this protocol should be 443, both for TCP and UDP.
 
 # Padding for client queries over UDP
 
-Prior to encryption, queries are padded using the ISO/IEC 7816-4
-format. The padding starts with a byte valued 0x80 followed by a
-variable number of NUL bytes.
+Prior to encryption, queries are padded using the ISO/IEC 7816-4 format. The padding starts with a byte valued 0x80 followed by a variable number of NUL bytes.
 
-`<client-query>` `<client-query-pad>` must be at least `<min-query-len>`
-bytes. If the length of the client query is less than `<min-query-len>`,
-the padding length must be adjusted in order to satisfy this
-requirement.
+`<client-query>` `<client-query-pad>` must be at least `<min-query-len>` bytes. If the length of the client query is less than `<min-query-len>`, the padding length must be adjusted in order to satisfy this requirement.
 
-`<min-query-len>` is a variable length, initially set to 256 bytes, and
-must be a multiple of 64 bytes.
+`<min-query-len>` is a variable length, initially set to 256 bytes, and must be a multiple of 64 bytes.
 
 # Client queries over UDP
 
 Client queries sent using UDP must be padded as described in section 3.
 
-A UDP packet can contain a single query, whose entire content is
-the `<dnscrypt-query>` construction documented in section 2.
+A UDP packet can contain a single query, whose entire content is the `<dnscrypt-query>` construction documented in section 2.
 
-UDP packets using the DNSCrypt protocol can be fragmented into
-multiple IP packets and can use a single source port.
+UDP packets using the DNSCrypt protocol can be fragmented into multiple IP packets and can use a single source port.
 
-After having received a query, the resolver can either ignore the query
-or reply with a DNSCrypt-encapsulated response.
+After having received a query, the resolver can either ignore the query or reply with a DNSCrypt-encapsulated response.
 
-The client must verify and decrypt the response using the resolver's
-public key, the shared secret and the received nonce. If the response
-cannot be verified, the response must be discarded.
+The client must verify and decrypt the response using the resolver's public key, the shared secret and the received nonce. If the response cannot be verified, the response must be discarded.
 
 If the response has the TC flag set, the client must:
 
@@ -163,21 +152,16 @@ If the response has the TC flag set, the client must:
 
 `<min-query-len> ::= min(<min-query-len> + 64, <max-query-len>)`
 
-`<min-query-len>` must be capped so that the full length of a DNSCrypt
-packet doesn't exceed the maximum size required by the transport layer.
+`<min-query-len>` must be capped so that the full length of a DNSCrypt packet doesn't exceed the maximum size required by the transport layer.
 
-The client may decrease `<min-query-len>`, but the length must remain a multiple
-of 64 bytes.
+The client may decrease `<min-query-len>`, but the length must remain a multiple of 64 bytes.
 
 # Padding for client queries over TCP
 
-Prior to encryption, queries are padded using the ISO/IEC 7816-4
-format. The padding starts with a byte valued 0x80 followed by a
+Prior to encryption, queries are padded using the ISO/IEC 7816-4 format. The padding starts with a byte valued 0x80 followed by a
 variable number of NUL bytes.
 
-The length of `<client-query-pad>` is randomly chosen between 1 and 256
-bytes (including the leading 0x80), but the total length of `<client-query>`
-`<client-query-pad>` must be a multiple of 64 bytes.
+The length of `<client-query-pad>` is randomly chosen between 1 and 256 bytes (including the leading 0x80), but the total length of `<client-query>` `<client-query-pad>` must be a multiple of 64 bytes.
 
 For example, an originally unpadded 56-bytes DNS query can be padded as:
 
@@ -201,7 +185,6 @@ Unlike UDP queries, a query sent over TCP can be shorter than the response.
 After having received a response from the resolver, the client and the resolver must close the TCP connection. Multiple transactions over the same TCP connections are not allowed by this revision of the protocol.
 
 
-
 # Authenticated encryption and key exchange algorithm
 
 The `Box-XChaChaPoly` construction, and the way to use it described in this section, must be referenced in certificates as version `2` of the public-key authenticated encryption system.
@@ -212,23 +195,18 @@ The public and secret keys are 32 bytes long in storage. The MAC is 16 bytes lon
 
 When using `Box-XChaChaPoly`, this construction requires a 24 bytes nonce, that must not be reused for a given shared secret.
 
-With a 24 bytes nonce, a question sent by a DNSCrypt client must be encrypted using the shared secret, and a nonce constructed as follows:
-12 bytes chosen by the client followed by 12 NUL (`0x00`) bytes.
+With a 24 bytes nonce, a question sent by a DNSCrypt client must be encrypted using the shared secret, and a nonce constructed as follows: 12 bytes chosen by the client followed by 12 NUL (`0x00`) bytes.
 
-A response to this question must be encrypted using the shared secret, and a nonce constructed as follows: the bytes originally chosen by
-the client, followed by bytes chosen by the resolver.
+A response to this question must be encrypted using the shared secret, and a nonce constructed as follows: the bytes originally chosen by the client, followed by bytes chosen by the resolver.
 
 The resolver's half of the nonce should be randomly chosen.
 
-The client's half of the nonce can include a timestamp in addition to a counter or to random bytes, so that when a response is received, the
-client can use this timestamp to immediately discard responses to queries that have been sent too long ago, or dated in the future.
+The client's half of the nonce can include a timestamp in addition to a counter or to random bytes, so that when a response is received, the client can use this timestamp to immediately discard responses to queries that have been sent too long ago, or dated in the future.
 
 
 # Certificates
 
-The client begins a DNSCrypt session by sending a regular unencrypted
-TXT DNS query to the resolver IP address, on the DNSCrypt port, first
-over UDP, then, in case of failure, timeout or truncation, over TCP.
+The client begins a DNSCrypt session by sending a regular unencrypted TXT DNS query to the resolver IP address, on the DNSCrypt port, first over UDP, then, in case of failure, timeout or truncation, over TCP.
 
 Resolvers are not required to serve certificates both on UDP and TCP.
 
@@ -238,41 +216,31 @@ The name in the question (`<provider name`) must follow this scheme:
 
 A major protocol version has only one certificate format.
 
-A DNSCrypt client implementing the second version of the protocol must
-send a query with the TXT type and a name of the form:
+A DNSCrypt client implementing the second version of the protocol must send a query with the TXT type and a name of the form:
 
 `2.dnscrypt-cert.example.com`
 
-The zone must be a valid DNS name, but may not be registered in the DNS
-hierarchy.
+The zone must be a valid DNS name, but may not be registered in the DNS hierarchy.
 
-A single provider name can be shared by multiple resolvers operated by
-the same entity, and a resolver can respond to multiple provider
+A single provider name can be shared by multiple resolvers operated by the same entity, and a resolver can respond to multiple provider
 names, especially to support multiple protocol versions simultaneously.
 
-In order to use a DNSCrypt-enabled resolver, a client must know the
-following information:
+In order to use a DNSCrypt-enabled resolver, a client must know the following information:
 
 - The resolver IP address and port
 - The provider name
 - The provider public key
 
-The provider public key is a long-term key whose sole purpose is to
-verify the certificates. It is never used to encrypt or verify DNS queries.
-A unique provider public key can be used to sign multiple certificates.
+The provider public key is a long-term key whose sole purpose is to verify the certificates. It is never used to encrypt or verify DNS queries. A unique provider public key can be used to sign multiple certificates.
 
-For example, an organization operating multiple resolvers can use
-a unique provider name and provider public key across all resolvers,
-and just provide a list of IP addresses and ports. Each resolver may
-have its unique set of certificates that can be signed with the
+For example, an organization operating multiple resolvers can use a unique provider name and provider public key across all resolvers,
+and just provide a list of IP addresses and ports. Each resolver may have its unique set of certificates that can be signed with the
 same key.
 
-Certificates should be signed on dedicated hardware and not on the
-resolvers. Resolvers must serve the certificates, provided that they
+Certificates should be signed on dedicated hardware and not on the resolvers. Resolvers must serve the certificates, provided that they
 have already been signed.
 
-A successful response to certificate request contains one or more TXT
-records, each record containing a certificate encoded as follows:
+A successful response to certificate request contains one or more `TXT` records, each record containing a certificate encoded as follows:
 
 - `<cert>`: `<cert-magic> <es-version> <protocol-minor-version> <signature> <resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>`
 - `<cert-magic>`: `0x44 0x4e 0x53 0x43`
@@ -295,28 +263,21 @@ with a higher serial number.
 big-endian 4-byte unsigned Unix timestamp.
 - `<extensions>`: empty in the current protocol version, but may contain additional data in future revisions, including minor versions. The computation and the verification of the signature must include the extensions. An implementation not supporting these extensions must ignore them.
 
-Certificates made of these information, without extensions, are 116 bytes
-long. With the addition of the cert-magic, es-version and
+Certificates made of these information, without extensions, are 116 bytes long. With the addition of the cert-magic, es-version and
 protocol-minor-version, the record is 124 bytes long.
 
-After having received a set of certificates, the client checks their
-validity based on the current date, filters out the ones designed for
-encryption systems that are not supported by the client, and chooses
-the certificate with the higher serial number.
+After having received a set of certificates, the client checks their validity based on the current date, filters out the ones designed for encryption systems that are not supported by the client, and chooses the certificate with the higher serial number.
 
-DNSCrypt queries sent by the client must use the `<client-magic>`
-header of the chosen certificate, as well as the specified encryption
+DNSCrypt queries sent by the client must use the `<client-magic>` header of the chosen certificate, as well as the specified encryption
 system and public key.
 
-The client must check for new certificates every hour, and switch to a
-new certificate if:
+The client must check for new certificates every hour, and switch to a new certificate if:
 
 - the current certificate is not present or not valid any more
 
 or
 
-- a certificate with a higher serial number than the current one is
-available.
+- a certificate with a higher serial number than the current one is available.
 
 
 # Security considerations
@@ -326,40 +287,26 @@ DNSCrypt does not protect against attacks on DNS infrastructure.
 
 # Operational considerations
 
-Special attention should be paid to the uniqueness of the generated
-secret keys.
+Special attention should be paid to the uniqueness of the generated secret keys.
 
-Client public keys can be used by resolvers to authenticate clients,
-link queries to customer accounts, and unlock business-specific
+Client public keys can be used by resolvers to authenticate clients, link queries to customer accounts, and unlock business-specific
 features such as redirecting specific domain names to a sinkhole.
 
-Resolvers accessible from any client IP address can also opt for only
-responding to a set of whitelisted public keys.
+Resolvers accessible from any client IP address can also opt for only responding to a set of whitelisted public keys.
 
-Resolvers accepting queries from any client must accept any client
-public key. In particular, an anonymous client can generate a new key pair
-for every session, or even for every query. This mitigates the ability
-for a resolver to group queries by client public keys, and discover
-the set of IP addresses a user might have been operating.
+Resolvers accepting queries from any client must accept any client public key. In particular, an anonymous client can generate a new key pair for every session, or even for every query.
 
-Resolvers must rotate the short-term key pair every 24 hours at most, and
-must throw away the previous secret key.
+his mitigates the ability for a resolver to group queries by client public keys, and discover the set of IP addresses a user might have been operating.
 
-During a key rotation, and provided that the old key hasn't been
-compromised, a resolver should accept both the old and the new key for at
-least 4 hours, and public them as different certificates.
+Resolvers must rotate the short-term key pair every 24 hours at most, and must throw away the previous secret key.
 
-Provider public keys may be published as a DNSSEC-signed TXT records,
-in the same zone as the provider name.
+During a key rotation, and provided that the old key hasn't been compromised, a resolver should accept all valid keys for at least 4 hours, and handle them as different certificates.
 
-For example, a query for the TXT type on the name `"2.pubkey.example.com"`
-may return a signed record containing a hexadecimal-encoded provider
-public key for the provider name `"2.dnscrypt-cert.example.com"`.
+Provider public keys may be published as a DNSSEC-signed TXT records, in the same zone as the provider name.
 
-As a client is likely to reuse the same key pair many times, servers are
-encouraged to cache shared keys instead of performing the X25519
-operation for each query. This makes the computational overhead of
-DNSCrypt negligible compared to plain DNS.
+For example, a query for the TXT type on the name `"2.pubkey.example.com"` may return a signed record containing a hexadecimal-encoded provider public key for the provider name `"2.dnscrypt-cert.example.com"`.
+
+As a client is likely to reuse the same key pair many times, servers are encouraged to cache shared keys instead of performing the X25519 operation for each query. This makes the computational overhead of DNSCrypt negligible compared to plain DNS.
 
 
 # IANA Considerations
