@@ -89,12 +89,12 @@ Definitions for server responses:
 
 The protocol operates as follows:
 
-1) The DNSCrypt client sends a DNS query to a DNSCrypt server to retrieve the server's public keys.
-2) The client generates its own key pair.
-3) The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is sent using standard DNS transport mechanisms.
-4) Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.
-5) To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
-6) The client authenticates and decrypts the response using its secret key, the server's public key, the attached nonce, and its own nonce. If the response was truncated, the client may adjust internal parameters and retry over TCP. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
+1. The DNSCrypt client sends a DNS query to a DNSCrypt server to retrieve the server's public keys.
+2. The client generates its own key pair.
+3. The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is sent using standard DNS transport mechanisms.
+4. Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.
+5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
+6. The client authenticates and decrypts the response using its secret key, the server's public key, the attached nonce, and its own nonce. If the response was truncated, the client may adjust internal parameters and retry over TCP. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
 # Key management
 
@@ -147,8 +147,8 @@ The client must verify and decrypt the response using the resolver's public key,
 
 If the response has the TC flag set, the client must:
 
-1) send the query again using TCP
-2) set the new minimum query length as:
+1. send the query again using TCP
+2. set the new minimum query length as:
 
 `<min-query-len> ::= min(<min-query-len> + 64, <max-query-len>)`
 
@@ -409,8 +409,8 @@ XChaCha20_DJB can be constructed from ChaCha20 implementation and HChaCha20.
 
 All one needs to do is:
 
-1) Pass the key and the first 16 bytes of the 24-byte nonce to `HChaCha20` to obtain the subkey.
-2) Use the subkey and remaining 8 byte nonce with `ChaCha20_DJB`.
+1. Pass the key and the first 16 bytes of the 24-byte nonce to `HChaCha20` to obtain the subkey.
+2. Use the subkey and remaining 8 byte nonce with `ChaCha20_DJB`.
 
 
 ## XChaCha20_DJB-Poly1305
