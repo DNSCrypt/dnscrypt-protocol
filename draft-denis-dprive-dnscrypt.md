@@ -166,11 +166,17 @@ The length of `<client-query-pad>` is randomly chosen between 1 and 256 bytes (i
 For example, an originally unpadded 56-bytes DNS query can be padded as:
 
 `<56-bytes-query> 0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00`
+
 or
+
 `<56-bytes-query> 0x80 (0x00 * 71)`
+
 or
+
 `<56-bytes-query> 0x80 (0x00 * 135)`
+
 or
+
 `<56-bytes-query> 0x80 (0x00 * 199)`
 
 
@@ -318,6 +324,7 @@ This document has no IANA actions.
 
 The `Box-XChaChaPoly` algorithm combines the `X25519` {{!RFC7748}} key exchange mechanism with a variant of the ChaCha20-Poly1305 constrution defined in {{!RFC8439}}.
 
+
 ## HChaCha20
 
 `HChaCha20` is an intermediary step based on the construction and security proof used to create XSalsa20, an extended-nonce Salsa20 variant.
@@ -426,6 +433,7 @@ Finally, the output of the Poly1305 function is prepended to the ciphertext:
 - `<k>`: encryption key
 - `<m>`: message to encrypt
 - `XChaCha20_DJB-Poly1305(<k>, <m>)`: `Poly1305(XChaCha20_DJB(<k>, <m>)) || XChaCha20_DJB(<k>, <m>)`
+
 
 ## The Box-XChaChaPoly algorithm
 
