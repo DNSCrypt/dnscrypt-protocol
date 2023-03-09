@@ -470,3 +470,13 @@ Known open source implementations of the DNSCrypt version 2 protocol are:
 - Adguard - client-side and server-side implementations in Go
 - reklatsmasters/dnscrypt - client implementation in pure JavaScript
 - Texnomic SecureDNS - server implementation in C#
+
+15. Contributing
+----------------
+
+The repository for this document and related documents is:
+https://github.com:DNSCrypt/dnscrypt-protocol
+
+Contributions can be made by creating pull requests.
+
+The GitHub interface supports creating pull requests using the Edit (✏) button.
