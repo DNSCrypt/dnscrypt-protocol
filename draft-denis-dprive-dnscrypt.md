@@ -34,7 +34,7 @@ The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic betwee
 
 # Introduction
 
-The document defines a specific protocol, DNSCrypt, that encrypts and authenticates DNS [@!RFC1035] queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.
+The document defines a specific protocol, DNSCrypt, that encrypts and authenticates DNS {{!RFC1035}} queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.
 
 The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy.
 
