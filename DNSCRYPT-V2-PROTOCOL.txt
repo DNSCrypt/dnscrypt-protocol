@@ -183,7 +183,7 @@ same TCP connections are not allowed by this revision of the protocol.
 
 <client-pk> ::= the client's public key.
 
-<resolver-sk> ::= the resolver's public key.
+<resolver-sk> ::= the resolver's secret key.
 
 <resolver-nonce> ::= a unique response identifier for a given
 (<client-pk>, <resolver-sk>) tuple. The length of <resolver-nonce>
