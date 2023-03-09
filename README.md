@@ -8,3 +8,4 @@ The Anonymized DNSCrypt extension prevents DNS servers from associating queries 
 
 - [DNSCrypt v2](https://raw.githubusercontent.com/DNSCrypt/dnscrypt-protocol/master/DNSCRYPT-V2-PROTOCOL.txt)
 - [Anonymized DNSCrypt](https://raw.githubusercontent.com/DNSCrypt/dnscrypt-protocol/master/ANONYMIZED-DNSCRYPT.txt)
+- [DNSCrypt RFC](https://dnscrypt.github.io/dnscrypt-protocol/#go.draft-denis-dprive-dnscrypt.html) (WIP, editor's copy)
