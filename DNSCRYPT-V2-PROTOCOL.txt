@@ -364,6 +364,9 @@ using X25519.
 using the information from this certificate. It may be a truncated
 public key. Two valid certificates cannot share the same <client-magic>.
 
+<client-magic> must not start with 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+(seven all-zero bytes) in order to avoid a confusion with the QUIC protocol.
+
 <serial> ::= a 4 byte serial number in big-endian format. If more than
 one certificates are valid, the client must prefer the certificate
 with a higher serial number.
@@ -450,7 +453,6 @@ DNSCrypt negligible compared to plain DNS.
 
 Known open source implementations of the DNSCrypt version 2 protocol are:
 
-- dnscrypt-wrapper - server-side implementation in C
 - Encrypted DNS Server - server-side implementation in Rust
 - PowerDNS dnsdist - a DNS loadbalancer that provides server-side DNSCrypt
 - unbound - a validating, caching resolver that provides server-side DNSCrypt
