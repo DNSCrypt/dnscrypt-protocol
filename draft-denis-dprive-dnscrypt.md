@@ -302,7 +302,7 @@ Resolvers accessible from any client IP address can also opt for only responding
 
 Resolvers accepting queries from any client must accept any client public key. In particular, an anonymous client can generate a new key pair for every session, or even for every query.
 
-his mitigates the ability for a resolver to group queries by client public keys, and discover the set of IP addresses a user might have been operating.
+This mitigates the ability for a resolver to group queries by client public keys, and discover the set of IP addresses a user might have been operating.
 
 Resolvers must rotate the short-term key pair every 24 hours at most, and must throw away the previous secret key.
 
