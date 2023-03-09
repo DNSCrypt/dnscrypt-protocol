@@ -263,20 +263,20 @@ length of the client query.
 11. Authenticated encryption and key exchange algorithm
 -------------------------------------------------------
 
-The X25519-XSalsa20Poly1305 construction, and the way to use it
+The X25519-XChaCha20Poly1305 construction, and the way to use it
 described in this section, must be referenced in certificates as
-version 1 of the public-key authenticated encryption system.
+version 2 of the public-key authenticated encryption system.
 
-In the current version, the construction, originally implemented in
-the NaCl cryptographic library and exposed under the name
-"crypto_box", uses the Curve25119 elliptic curve in Montgomery form
-and the hsalsa20 hash function for key exchange, the XSalsa20 stream
-cipher, and Poly1305 for message authentication.
+The construction, originally implemented in
+the libsodium cryptographic library and exposed under the name
+"crypto_box_xchacha20poly1305", uses the Curve25119 elliptic curve in
+Montgomery form and the hchacha20 hash function for key exchange,
+the XChaCha20 stream cipher, and Poly1305 for message authentication.
 
 The public and secret keys are 32 bytes long in storage. The MAC is 16 bytes
 long, and is prepended to the ciphertext.
 
-When using X25519-XSalsa20Poly1305, this construction requires a 24 bytes
+When using X25519-XChaCha20Poly1305, this construction requires a 24 bytes
 nonce, that must not be reused for a given shared secret.
 
 With a 24 bytes nonce, a question sent by a DNSCrypt client must be
@@ -353,7 +353,6 @@ records, each record containing a certificate encoded as follows:
 
 <es-version> ::= the cryptographic construction to use with this
 certificate.
-For X25519-XSalsa20Poly1305, <es-version> must be 0x00 0x01.
 For X25519-XChacha20Poly1305, <es-version> must be 0x00 0x02.
 
 <protocol-minor-version> ::= 0x00 0x00
