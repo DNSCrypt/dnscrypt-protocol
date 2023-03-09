@@ -430,9 +430,8 @@ the set of IP addresses a user might have been operating.
 Resolvers must rotate the short-term key pair every 24 hours at most, and
 must throw away the previous secret key.
 
-During a key rotation, and provided that the old key hasn't been
-compromised, a resolver should accept both the old and the new key for at
-least 4 hours, and public them as different certificates.
+After a key rotation, a resolver must still accept all the previous keys
+that haven't expired.
 
 Provider public keys may be published as a DNSSEC-signed TXT records,
 in the same zone as the provider name.

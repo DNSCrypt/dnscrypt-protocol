@@ -300,7 +300,7 @@ his mitigates the ability for a resolver to group queries by client public keys,
 
 Resolvers must rotate the short-term key pair every 24 hours at most, and must throw away the previous secret key.
 
-During a key rotation, and provided that the old key hasn't been compromised, a resolver should accept all valid keys for at least 4 hours, and handle them as different certificates.
+After a key rotation, a resolver must still accept all the previous keys that haven't expired.
 
 Provider public keys may be published as a DNSSEC-signed TXT records, in the same zone as the provider name.
 
