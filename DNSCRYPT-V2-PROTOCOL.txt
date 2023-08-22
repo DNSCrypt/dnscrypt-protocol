@@ -473,7 +473,7 @@ Known open source implementations of the DNSCrypt version 2 protocol are:
 ----------------
 
 The repository for this document and related documents is:
-https://github.com:DNSCrypt/dnscrypt-protocol
+https://github.com/DNSCrypt/dnscrypt-protocol
 
 Contributions can be made by creating pull requests.
 
