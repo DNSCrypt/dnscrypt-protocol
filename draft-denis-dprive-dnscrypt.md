@@ -292,7 +292,7 @@ or
 
 Multiple implementations of the protocol described in this document have been developed and verified for interoperability.
 
-A comprehensive list of known implementations can be found at [DNSCrypt protocol implementations](https://dnscrypt.info/implementations).
+A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
 
 
 # Security considerations
