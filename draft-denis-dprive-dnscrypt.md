@@ -286,6 +286,15 @@ or
 - a certificate with a higher serial number than the current one is available.
 
 
+# Implementation Status
+
+*This note is to be removed before publishing as an RFC.*
+
+Multiple implementations of the protocol described in this document have been developed and verified for interoperability.
+
+A comprehensive list of known implementations can be found at [DNSCrypt protocol implementations](https://dnscrypt.info/implementations).
+
+
 # Security considerations
 
 DNSCrypt does not protect against attacks on DNS infrastructure.
