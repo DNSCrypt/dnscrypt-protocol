@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2024-01-09T00:55:47.280040+00:00",
+  "timestamp": "2024-01-11T00:55:50.105275+00:00",
   "repo": "DNSCrypt/dnscrypt-protocol",
   "labels": [
     {
@@ -179,6 +179,65 @@
       "updatedAt": "2023-03-09T17:12:42Z",
       "closedAt": null,
       "comments": []
+    },
+    {
+      "number": 14,
+      "id": "I_kwDOBsvhTs57kGPF",
+      "title": "Add signatures directly of the DNS record",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/14",
+      "state": "OPEN",
+      "author": "Divide-By-0",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Hey, currently, I have to directly talk to a resolver to get a DNS validation, so if they are not live, I cannot use their past responses, and their capacity is limited by their bandwidth. This can be improved by having a cryptographic signature not jut of their public key, but of the result of their DNS retrieval as well. Then, other users can relay that message to other users, and it still holds the portable provenance of that answer. This means my infrastructure can scale the result to all of our users after just one reaponse of the resolver, and they don't have to trust us.\r\n\r\nWith the current system, since it does the symmetric encryption, that value cannot be relayed past the original user, since the middle hop could have forged the response as they have the symmetric key as well. We would find such a signature extremely useful in production for [zk email](https://prove.email) as it would give us an end to end chain of provenance.",
+      "createdAt": "2024-01-09T19:53:50Z",
+      "updatedAt": "2024-01-10T04:32:52Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "I must confess that I don't follow...\r\n\r\n> Hey, currently, I have to directly talk to a resolver to get a DNS validation\r\n\r\nWhat do you mean by DNS validation? Are you referring to DNSSEC? What is talking to a resolver? What is \"I\"? A proxy? A relay? A cache? A client?\r\n\r\nIn the DNSCrypt protocol, certificates are retrieved using a DNS query, and all the included certificates are signed, not just public keys. That can be safely cached and relayed by third-party caches if necessary. In fact, this is what DNSCrypt relays already do in order to defend against fingerprinting.\r\n\r\n> With the current system, since it does the symmetric encryption\r\n\r\nIt doesn't. Certificates only contain public keys, and clients can derive new key pairs, and thus shared secrets as often as they want (see `dnscrypt_ephemeral_keys` in `dnscrypt-proxy`).\r\n\r\n> that value cannot be relayed past the original user\r\n\r\nWhat is a \"value\"? DNSCrypt relays can't forge anything, as they don't know about the server nor the client private keys.\r\n\r\nWithout buzzwords, what problem are you trying to solve? Are you looking for proxy reencryption?",
+          "createdAt": "2024-01-09T20:26:45Z",
+          "updatedAt": "2024-01-09T20:26:45Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "Right, sorry, let me add more details. Not quite proxy re-encryption. \r\n\r\nThe primary functionality I am looking for is the ability to verify that someone trustworthy has attested to the value of a DNS record, even if the website does not have DNSSEC enabled. I am a client, looking for functionality from resolvers. I want to serve their digital signatures to the public to reduce reliance on us as a central provider. For instance, on our dkim lookup site, [dkim-lookup.vercel.app](https://dkim-lookup.vercel.app/) right now users have to trust that we uploaded the value for say `gmail.com` correctly. \r\n\r\nIf gmail had DNSSEC on, this verification would be easy. However, they don't. In place of that, I am hoping that 100 resolvers all giving a signature that it is in fact correct is a good enough \"double check\" on us serving those values.\r\n\r\nSpecifically, pretend all lookups on this site also include signatures of the DNS record from say 100 resolvers, (ideally timestamped) of the response that I claim. As the central owner of this site, now I can't just fudge a bunch of DNS DKIM records however I would like, because I would have had to compromise 100 resolvers as well [ideally these are the highest reputation resolvers]. \r\n\r\nThe thing is, just sending the DNS over an encrypted channel doesn't quite give me this functionality. Since DNSCrypt is interested in helping make DNS lookups online more trustworthy, I was hoping that this might be a worthy addition to the protocol.\r\n\r\n> that value\r\n\r\nSorry I am discussing the value of a specific DNS record here.",
+          "createdAt": "2024-01-09T21:40:10Z",
+          "updatedAt": "2024-01-09T21:42:35Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "If I understand correctly, you would like DNS caches to add, to every response, an extra record with a timestamp, as well as an extra record that is a signature of other records + the timestamp.\r\n\r\nThat can be useful to fetch a decrypted response from a secondary cache, and still have the ability to check that it originally comes from a given cache.\r\n\r\nBut in the context of the application you describe:\r\n\r\n> 100 resolvers all giving a signature that it is in fact correct is a good enough \"double check\" on us serving those values\r\n\r\nThat wouldn't be useful.\r\n\r\nResolvers are not guaranteed to serve the same response for a given query. First, when a zone is updated, the update is not atomic, so authoritative servers and caches will send different responses.\r\n\r\nSome records also have a `0` TTL, so every query can return a different response.\r\n\r\nServers also frequently return different IP addresses for load-balancing purposes, or for geographic steering. By design, you can't expect 100, or even 2 servers to return the same responses.\r\n\r\nThe only thing that can be compared are DNSSEC public keys used to sign zones. And even then, this is tricky due to key rotation, that requires querying parent zones.",
+          "createdAt": "2024-01-09T22:04:28Z",
+          "updatedAt": "2024-01-09T22:04:28Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "> That can be useful to fetch a decrypted response from a secondary cache, and still have the ability to check that it originally comes from a given cache.\r\n\r\nYup! That was the original thing I was trying to get to, but this is phrased much better haha.\r\n\r\n> Resolvers are not guaranteed to serve the same response for a given query. First, when a zone is updated, the update is not atomic, so authoritative servers and caches will send different responses.\r\n\r\nYeah! So for DKIM, because most (all that I've seen) providers have a single key per mail service they use (and thus per dkim selector), so likely they'd have global consensus for those. During rotation (once every 6 months or so), yes, likely servers would disagree and then like 1-48 hours later they'd be synced again. That information is also very useful for us because then we can freeze certain operations that take these email proofs, until the keys are updated; but 178/180 days everyone should be in sync which is still a major help for us. We are OK if servers return different IPs; we only care about the TXT records corresponding to a specific domain, which should be globally consistent! So I agree this specific usecase would likely not make sense for usual DNS resolutions, but it would be very useful for our usecase (although the secondary caching idea would probably be useful for the regular DNS usecase as well :)",
+          "createdAt": "2024-01-09T22:29:41Z",
+          "updatedAt": "2024-01-09T22:30:06Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "That is independent from the DNSCrypt protocol, especially since a key feature of DNSCrypt is that queries and responses are not inspected nor modified.\r\n\r\nIt would rather be a feature that DNS caches could implement. The transport protocol is irrelevant. \r\n",
+          "createdAt": "2024-01-09T23:01:37Z",
+          "updatedAt": "2024-01-09T23:01:37Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "> That is independent from the DNSCrypt protocol, especially since a key feature of DNSCrypt is that queries and responses are not inspected nor modified.\r\n> \r\n> It would rather be a feature that DNS caches could implement. The transport protocol is irrelevant.\r\n\r\nGot it! What is the best project for me to reach out to here for this, or repo to contribute to?",
+          "createdAt": "2024-01-09T23:57:06Z",
+          "updatedAt": "2024-01-10T04:32:52Z"
+        }
+      ]
     }
   ],
   "pulls": [
