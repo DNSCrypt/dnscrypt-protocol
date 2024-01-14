@@ -40,7 +40,7 @@ The protocol is designed to be lightweight, extensible, and simple to implement 
 
 DNS packets don't need to be parsed nor rewritten. DNSCrypt simply wraps them in a secure, encrypted container. Encrypted packets are then exchanged the same way as regular packets, using the standard DNS transport mechanisms. Queries and responses are sent over UDP, falling back to TCP for large responses only if necessary.
 
-DNSCrypt is stateless. Every query can be processed independently from other queries. There are no session identifiers. Clients can replace their keys whenever they want, without extra interactions with servers.
+DNSCrypt is stateless. Every query can be processed independently from other queries. There are no session identifiers. In order to better defend against fingerprinting, clients can replace their keys whenever they want, without extra interactions with servers.
 
 DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
 
@@ -49,7 +49,7 @@ A recursive DNS server can accept DNSCrypt queries on the same IP address and po
 Finally, DNSCrypt addresses two security issues inherent to regular DNS over UDP: amplification and fragment attacks.
 
 
-# Conventions and Definitions
+# Conventions And Definitions
 
 {::boilerplate bcp14-tagged}
 
@@ -85,7 +85,7 @@ Definitions for server responses:
 - `<resolver-response-pad>`: the variable-length padding.
 
 
-# Protocol overview
+# Protocol Overview
 
 The protocol operates as follows:
 
@@ -96,7 +96,7 @@ The protocol operates as follows:
 5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
 6. The client authenticates and decrypts the response using its secret key, the server's public key, the attached nonce, and its own nonce. If the response was truncated, the client may adjust internal parameters and retry over TCP. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
-# Key management
+# Key Management
 
 Both the client and the resolver initially generate a short-term key pair for each supported encryption system.
 
@@ -125,7 +125,7 @@ DNSCrypt Clients and resolvers should support the protocol over UDP and must sup
 
 The default port for this protocol should be 443, both for TCP and UDP.
 
-# Padding for client queries over UDP
+# Padding For Client Queries Over UDP
 
 Prior to encryption, queries are padded using the ISO/IEC 7816-4 format. The padding starts with a byte valued 0x80 followed by a variable number of NUL bytes.
 
@@ -133,7 +133,7 @@ Prior to encryption, queries are padded using the ISO/IEC 7816-4 format. The pad
 
 `<min-query-len>` is a variable length, initially set to 256 bytes, and must be a multiple of 64 bytes.
 
-# Client queries over UDP
+# Client Queries Over UDP
 
 Client queries sent using UDP must be padded as described in section 3.
 
@@ -156,7 +156,7 @@ If the response has the TC flag set, the client must:
 
 The client may decrease `<min-query-len>`, but the length must remain a multiple of 64 bytes.
 
-# Padding for client queries over TCP
+# Padding For Client Queries Over TCP
 
 Prior to encryption, queries are padded using the ISO/IEC 7816-4 format. The padding starts with a byte valued 0x80 followed by a
 variable number of NUL bytes.
@@ -180,7 +180,7 @@ or
 `<56-bytes-query> 0x80 (0x00 * 199)`
 
 
-# Client queries over TCP
+# Client Queries Over TCP
 
 Encrypted client queries over TCP only differ from queries sent over UDP by the padding length computation and by the fact that they are prefixed with their length, encoded as two big-endian bytes.
 
@@ -191,7 +191,7 @@ Unlike UDP queries, a query sent over TCP can be shorter than the response.
 After having received a response from the resolver, the client and the resolver must close the TCP connection. Multiple transactions over the same TCP connections are not allowed by this revision of the protocol.
 
 
-# Authenticated encryption and key exchange algorithm
+# Authenticated Encryption And Key Exchange Algorithm
 
 The `Box-XChaChaPoly` construction, and the way to use it described in this section, must be referenced in certificates as version `2` of the public-key authenticated encryption system.
 
@@ -295,12 +295,12 @@ Multiple implementations of the protocol described in this document have been de
 A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
 
 
-# Security considerations
+# Security Considerations
 
 DNSCrypt does not protect against attacks on DNS infrastructure.
 
 
-# Operational considerations
+# Operational Considerations
 
 Special attention should be paid to the uniqueness of the generated secret keys.
 
@@ -329,7 +329,7 @@ As a client is likely to reuse the same key pair many times, servers are encoura
 This document has no IANA actions.
 
 
-# Appendix 1: The Box-XChaChaPoly algorithm
+# Appendix 1: The Box-XChaChaPoly Algorithm
 
 The `Box-XChaChaPoly` algorithm combines the `X25519` {{!RFC7748}} key exchange mechanism with a variant of the ChaCha20-Poly1305 constrution defined in {{!RFC8439}}.
 
@@ -366,7 +366,7 @@ After initialization, proceed through the ChaCha rounds as usual.
 
 Once the 20 ChaCha rounds have been completed, the first 128 bits and last 128 bits of the ChaCha state (both little-endian) are concatenated, and this 256-bit subkey is returned.
 
-## Test Vector for the HChaCha20 Block Function
+## Test Vector For The HChaCha20 Block Function
 
 ~~~
    o  Key = 00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f:10:11:12:13:
@@ -444,7 +444,7 @@ Finally, the output of the Poly1305 function is prepended to the ciphertext:
 - `XChaCha20_DJB-Poly1305(<k>, <m>)`: `Poly1305(XChaCha20_DJB(<k>, <m>)) || XChaCha20_DJB(<k>, <m>)`
 
 
-## The Box-XChaChaPoly algorithm
+## The Box-XChaChaPoly Algorithm
 
 The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined {{!RFC7748}} with the `XChaCha20_DJB-Poly1305` authenticated encryption algorithm.
 
