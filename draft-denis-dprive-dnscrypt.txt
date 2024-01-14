@@ -713,8 +713,9 @@ Table of Contents
 
    *  <m>: message to encrypt
 
-   *  XChaCha20_DJB-Poly1305(<k>, <m>): Poly1305(XChaCha20_DJB(<k>,
-      <m>)) || XChaCha20_DJB(<k>, <m>)
+   *  <ct>: XChaCha20_DJB(<k>, <m>)
+
+   *  XChaCha20_DJB-Poly1305(<k>, <m>): Poly1305(<ct>) || <ct>
 
 17.6.  The Box-XChaChaPoly Algorithm
 
@@ -730,9 +731,9 @@ Table of Contents
 
    *  <sk>: sender's secret key
 
-   *  sk: HChaCha20(X25519(<pk>, <sk>))
+   *  <sk'>: HChaCha20(X25519(<pk>, <sk>))
 
-   *  Box-XChaChaPoly(pk, sk, m): XChaCha20_DJB-Poly1305(<sk>, <m>)
+   *  Box-XChaChaPoly(pk, sk, m): XChaCha20_DJB-Poly1305(<sk'>, <m>)
 
 18.  Normative References
 
