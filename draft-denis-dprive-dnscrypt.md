@@ -441,7 +441,8 @@ Finally, the output of the Poly1305 function is prepended to the ciphertext:
 
 - `<k>`: encryption key
 - `<m>`: message to encrypt
-- `XChaCha20_DJB-Poly1305(<k>, <m>)`: `Poly1305(XChaCha20_DJB(<k>, <m>)) || XChaCha20_DJB(<k>, <m>)`
+- `<ct>`: `XChaCha20_DJB(<k>, <m>)`
+- `XChaCha20_DJB-Poly1305(<k>, <m>)`: `Poly1305(<ct>) || <ct>`
 
 
 ## The Box-XChaChaPoly Algorithm
@@ -452,8 +453,8 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 - `<m>`: message to encrypt
 - `<pk>`: recipent's public key
 - `<sk>`: sender's secret key
-- `sk`: `HChaCha20(X25519(<pk>, <sk>))`
-- `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk>, <m>)`
+- `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
+- `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
 
 
 --- back
