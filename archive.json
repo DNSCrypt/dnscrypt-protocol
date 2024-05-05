@@ -1,0 +1,349 @@
+{
+  "magic": "E!vIA5L86J2I",
+  "timestamp": "2024-05-05T00:57:55.363584+00:00",
+  "repo": "DNSCrypt/dnscrypt-protocol",
+  "labels": [
+    {
+      "name": "bug",
+      "description": null,
+      "color": "ee0701"
+    },
+    {
+      "name": "duplicate",
+      "description": null,
+      "color": "cccccc"
+    },
+    {
+      "name": "enhancement",
+      "description": null,
+      "color": "84b6eb"
+    },
+    {
+      "name": "good first issue",
+      "description": null,
+      "color": "7057ff"
+    },
+    {
+      "name": "help wanted",
+      "description": null,
+      "color": "33aa3f"
+    },
+    {
+      "name": "invalid",
+      "description": null,
+      "color": "e6e6e6"
+    },
+    {
+      "name": "question",
+      "description": null,
+      "color": "cc317c"
+    },
+    {
+      "name": "wontfix",
+      "description": null,
+      "color": "ffffff"
+    }
+  ],
+  "issues": [
+    {
+      "number": 1,
+      "id": "MDU6SXNzdWUyODUyNTAwMzQ=",
+      "title": "Leverage DNSSEC for resolver validation",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/1",
+      "state": "OPEN",
+      "author": "simonclausen",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "So I've had this floating around my mind for quite some time, but have never gotten around to thinking it through or doing a design suggestion. And probably won't for some time, so here's a bunch of notes to get started.\r\n\r\nThis starts with something you can't really get around, when you want to add a secure layer on anything:\r\n- It is more complex to start using a DNSCrypt enabled resolver than a traditional DNS server, because you need more info than an IP to validate\r\n- Distribution of the DNSCrypt resolver credentials needs to be done in a trusted and secure way\r\n\r\nRight now this is, in part, solved by having an authoritative list of DNSCrypt resolvers on GitHub, with changes happening through pull requests.\r\n\r\nUsers are also free to use servers outside this list by supplying the needed info to the DNSCrypt client manually. In this case it is entirely up to the user to figure out to make sure the info they got has not been altered during transport.\r\n\r\nThis issue is also widely solved by using PKI and CA's, which the authoritative is self bases it self upon (GitHub has been validated by a CA, etc, etc).\r\n\r\nPerceived issues:\r\n- The GitHub list is centralized, which causes us to rely on e.g. GitHub being up, @jedisct1 being alive, having time to process pull requests, and alike\r\n- As the list grows it can become quite a big job to keep track of pull request for changes being valid\r\n- Clients require a mechanism to pull changes from the list, this with a built in lag depending on the frequency of polling: it shouldn't happen often, but what if a provider key needs to be changed out due for whatever reason?\r\n- If you don't want to use the list you have to trust the e.g. the HTTPS transport of \"some site\", an email, be able to validate GPG signatures, etc, to get information on resolvers\r\n\r\nSo what if we could get around all of this?\r\n\r\nThe rough idea:\r\n- The client is supplied with the IP of the DNSCrypt resolver\r\n- Client send a regular DNS request for the PTR record of the resolver\r\n- The resolver replies with it's service name, \"resolver.service.com\" for instance\r\n- The client then constructs and sends regular DNS requests for A and TXT records for relevant info, and this time does DNSSEC validation of the replies\r\n  - resolver.service.com A\r\n  - pubkey.resolver.service.com TXT\r\n  - name.resolver.service.com TXT\r\n  - and any other info wanted and defined in the protocol\r\n- Client now has all the needed info, has validated it via DNS/DNSSEC and can start using the resolver via DNSCrypt\r\n\r\nWhat do you think?",
+      "createdAt": "2017-12-31T10:08:46Z",
+      "updatedAt": "2017-12-31T10:19:17Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "simonclausen",
+          "authorAssociation": "NONE",
+          "body": "Forgot a couple of points:\r\n- The resolver would be able to only reply on queries relevant to it self and blocking everything else,\r\n- alternatively it can operate in hybrid mode allowing both regular DNS and DNSCrypt\r\n- The client can detect if a resolver is dnscrypt capable by looking for a DNS record on the resolver name, i.e. dnscrypt.resolver.service.com TXT: this could make a OS implementation capable of opportunistic DNS security based on the capability of the resolver it gets handed to it, also making migration to DNSCrypt and backwards compatibility less of an issue",
+          "createdAt": "2017-12-31T10:19:17Z",
+          "updatedAt": "2017-12-31T10:19:17Z"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "id": "MDU6SXNzdWUzNjA0OTEzMTE=",
+      "title": "Adding support for IETF chacha20poly1305",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/2",
+      "state": "CLOSED",
+      "author": "chantra",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Given that there is now an IETF version, would it make sense to update the protocol and add support for it along the existing xsalsa and xchacha?",
+      "createdAt": "2018-09-15T00:38:15Z",
+      "updatedAt": "2023-03-09T07:29:24Z",
+      "closedAt": "2023-03-09T07:29:23Z",
+      "comments": [
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "IETF ChaCha was tailored for TLS. It has a smaller nonce size and would not be a good fit.\r\n\r\nIf we want to support for an IETF construction, I think we should use HPKE instead, even if restricted to X25519 and ChaChaPoly.",
+          "createdAt": "2023-03-09T07:29:23Z",
+          "updatedAt": "2023-03-09T07:29:23Z"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "id": "MDU6SXNzdWU2MDA0OTQwNDE=",
+      "title": "Anonymized DNSCrypt v2 protocol and eSNI",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/4",
+      "state": "CLOSED",
+      "author": "lrq3000",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Hello,\r\n\r\nI saw that the DNSCrypt v2 protocol intends to provide anonymized DNS requests. On [privacytools.io issues tracker](https://github.com/privacytoolsIO/privacytools.io/issues/1822), someone mentioned that there may still be an issue with the SNI.\r\n\r\nSince this is way above of my head, could someone please maybe clarify that issue? Thank you very much in advance :-)",
+      "createdAt": "2020-04-15T18:13:59Z",
+      "updatedAt": "2020-06-28T18:34:32Z",
+      "closedAt": "2020-06-28T18:34:32Z",
+      "comments": [
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "Browsers still leak websites they are trying to reach due to something called SNI.\r\n\r\nThis is being addresses in a new protocol called ECHO.\r\n\r\nBut ECHO is independent from DNSCrypt. This is something that web browsers and web servers have to implement.\r\n\r\nECHO isn't implemented anywhere yet, and the protocol itself is still being finalized.",
+          "createdAt": "2020-06-28T18:34:32Z",
+          "updatedAt": "2020-06-28T18:34:32Z"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "id": "MDU6SXNzdWU2NjU1NjYzODA=",
+      "title": "spec error: tcp length prefix encoded as bigendian instead of little endian",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/5",
+      "state": "CLOSED",
+      "author": "reklatsmasters",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Spec says:\r\n\r\n> Client queries over TCP only differ from queries sent over UDP by the\r\npadding length computation and by the fact that they are prefixed with\r\ntheir length, **encoded as two little-endian bytes**.\r\n\r\nBut tcp length actualy encoded as big endian!\r\n\r\nhttps://github.com/jedisct1/encrypted-dns-server/blob/641ba88ab1fd635524aee47afbba5887c52e1438/src/resolver.rs#L149-L152\r\n\r\nI spend a hours to understand why i don't get response from server over tcp.",
+      "createdAt": "2020-07-25T11:10:15Z",
+      "updatedAt": "2023-03-09T07:24:32Z",
+      "closedAt": "2023-03-09T07:24:32Z",
+      "comments": [
+        {
+          "author": "alex14fr",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I went through the same issue ;-)",
+          "createdAt": "2022-06-11T10:53:42Z",
+          "updatedAt": "2022-06-11T10:53:42Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "Thanks!",
+          "createdAt": "2023-03-09T07:24:32Z",
+          "updatedAt": "2023-03-09T07:24:32Z"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "id": "I_kwDOBsvhTs5PAaOc",
+      "title": "Typo",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/11",
+      "state": "CLOSED",
+      "author": "illiliti",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "https://github.com/DNSCrypt/dnscrypt-protocol/blob/719f119870407ca6b91c80728d416e0e93ffc905/DNSCRYPT-V2-PROTOCOL.txt#L183\r\n\r\nShould be `the resolver's secret key` i think",
+      "createdAt": "2022-08-02T08:53:53Z",
+      "updatedAt": "2023-03-09T07:26:40Z",
+      "closedAt": "2023-03-09T07:26:40Z",
+      "comments": []
+    },
+    {
+      "number": 12,
+      "id": "I_kwDOBsvhTs5ga3fI",
+      "title": "DNSCrypt v3: HPKE or ChaChaPoly-IETF?",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/12",
+      "state": "OPEN",
+      "author": "jedisct1",
+      "authorAssociation": "MEMBER",
+      "assignees": [],
+      "labels": [],
+      "body": "As initially pointed out by @chantra , supporting a standardized construction would be nice.\r\n\r\nFrom a security standpoint, there's nothing wrong with `Box-ChaChaPoly`.\r\n\r\nThe construction is very boring in a good way.\r\n\r\nNo signs of any practical vulnerability was ever found, key setup is virtually free, it is highly parallelizable and gets faster with each CPU generation while remaining fast on constrained devices.\r\n\r\nSo, there's no need to change something rock solid.\r\n\r\nHowever, it's an issue for specifications. Even if it's based on standardized building blocks, we have to describe how to implement it. Annex.1 in the current RFC is as large as the rest of the document and doesn't even include pseudo-code.\r\n\r\nIn practice, people just use implementations already available for their language. But it's still annoying for the specification.\r\n\r\nWe could easily add support for the IETF version of ChaChaPoly, without changing much of the protocol, not even nonce sizes. That requires one or two calls to a KDF to derive a subkey and a nonce, and using HKDF may be a bit slower than the current `hchacha` round, but it's not the end of the world.\r\n\r\nAn even more standard-y alternative would be to use HPKE with deterministic keys. That requires many more KDF calls, but we then wouldn't even have to explain how to compute shared keys. \r\n\r\nHPKE comes with a few issues and open questions, though:\r\n- Increased implementation size and complexity (even though implementations already exist for common languages)\r\n- Slightly slower, due to more KDF calls\r\n- Configuration (should it be part of the certificate? Shall we support all ciphers, hashes and KEMs?)\r\n- When used with AES-GCM: cost of key setup, which can ruin performance.\r\n- More intrusive changes to the protocol are required.\r\n\r\nFrom a user perspective, there wouldn't be any benefits at all over what we currently have. On the other hand, it can help with adoption, especially if Anonymized DNSCrypt can prove to be faster than DNS over Oblivious HTTP/3 while remaining way easier to implement.",
+      "createdAt": "2023-03-09T17:12:42Z",
+      "updatedAt": "2023-03-09T17:12:42Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 14,
+      "id": "I_kwDOBsvhTs57kGPF",
+      "title": "Add signatures directly of the DNS record",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/14",
+      "state": "OPEN",
+      "author": "Divide-By-0",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Hey, currently, I have to directly talk to a resolver to get a DNS validation, so if they are not live, I cannot use their past responses, and their capacity is limited by their bandwidth. This can be improved by having a cryptographic signature not jut of their public key, but of the result of their DNS retrieval as well. Then, other users can relay that message to other users, and it still holds the portable provenance of that answer. This means my infrastructure can scale the result to all of our users after just one reaponse of the resolver, and they don't have to trust us.\r\n\r\nWith the current system, since it does the symmetric encryption, that value cannot be relayed past the original user, since the middle hop could have forged the response as they have the symmetric key as well. We would find such a signature extremely useful in production for [zk email](https://prove.email) as it would give us an end to end chain of provenance.",
+      "createdAt": "2024-01-09T19:53:50Z",
+      "updatedAt": "2024-01-13T21:41:36Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "I must confess that I don't follow...\r\n\r\n> Hey, currently, I have to directly talk to a resolver to get a DNS validation\r\n\r\nWhat do you mean by DNS validation? Are you referring to DNSSEC? What is talking to a resolver? What is \"I\"? A proxy? A relay? A cache? A client?\r\n\r\nIn the DNSCrypt protocol, certificates are retrieved using a DNS query, and all the included certificates are signed, not just public keys. That can be safely cached and relayed by third-party caches if necessary. In fact, this is what DNSCrypt relays already do in order to defend against fingerprinting.\r\n\r\n> With the current system, since it does the symmetric encryption\r\n\r\nIt doesn't. Certificates only contain public keys, and clients can derive new key pairs, and thus shared secrets as often as they want (see `dnscrypt_ephemeral_keys` in `dnscrypt-proxy`).\r\n\r\n> that value cannot be relayed past the original user\r\n\r\nWhat is a \"value\"? DNSCrypt relays can't forge anything, as they don't know about the server nor the client private keys.\r\n\r\nWithout buzzwords, what problem are you trying to solve? Are you looking for proxy reencryption?",
+          "createdAt": "2024-01-09T20:26:45Z",
+          "updatedAt": "2024-01-09T20:26:45Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "Right, sorry, let me add more details. Not quite proxy re-encryption. \r\n\r\nThe primary functionality I am looking for is the ability to verify that someone trustworthy has attested to the value of a DNS record, even if the website does not have DNSSEC enabled. I am a client, looking for functionality from resolvers. I want to serve their digital signatures to the public to reduce reliance on us as a central provider. For instance, on our dkim lookup site, [dkim-lookup.vercel.app](https://dkim-lookup.vercel.app/) right now users have to trust that we uploaded the value for say `gmail.com` correctly. \r\n\r\nIf gmail had DNSSEC on, this verification would be easy. However, they don't. In place of that, I am hoping that 100 resolvers all giving a signature that it is in fact correct is a good enough \"double check\" on us serving those values.\r\n\r\nSpecifically, pretend all lookups on this site also include signatures of the DNS record from say 100 resolvers, (ideally timestamped) of the response that I claim. As the central owner of this site, now I can't just fudge a bunch of DNS DKIM records however I would like, because I would have had to compromise 100 resolvers as well [ideally these are the highest reputation resolvers]. \r\n\r\nThe thing is, just sending the DNS over an encrypted channel doesn't quite give me this functionality. Since DNSCrypt is interested in helping make DNS lookups online more trustworthy, I was hoping that this might be a worthy addition to the protocol.\r\n\r\n> that value\r\n\r\nSorry I am discussing the value of a specific DNS record here.",
+          "createdAt": "2024-01-09T21:40:10Z",
+          "updatedAt": "2024-01-09T21:42:35Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "If I understand correctly, you would like DNS caches to add, to every response, an extra record with a timestamp, as well as an extra record that is a signature of other records + the timestamp.\r\n\r\nThat can be useful to fetch a decrypted response from a secondary cache, and still have the ability to check that it originally comes from a given cache.\r\n\r\nBut in the context of the application you describe:\r\n\r\n> 100 resolvers all giving a signature that it is in fact correct is a good enough \"double check\" on us serving those values\r\n\r\nThat wouldn't be useful.\r\n\r\nResolvers are not guaranteed to serve the same response for a given query. First, when a zone is updated, the update is not atomic, so authoritative servers and caches will send different responses.\r\n\r\nSome records also have a `0` TTL, so every query can return a different response.\r\n\r\nServers also frequently return different IP addresses for load-balancing purposes, or for geographic steering. By design, you can't expect 100, or even 2 servers to return the same responses.\r\n\r\nThe only thing that can be compared are DNSSEC public keys used to sign zones. And even then, this is tricky due to key rotation, that requires querying parent zones.",
+          "createdAt": "2024-01-09T22:04:28Z",
+          "updatedAt": "2024-01-09T22:04:28Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "> That can be useful to fetch a decrypted response from a secondary cache, and still have the ability to check that it originally comes from a given cache.\r\n\r\nYup! That was the original thing I was trying to get to, but this is phrased much better haha.\r\n\r\n> Resolvers are not guaranteed to serve the same response for a given query. First, when a zone is updated, the update is not atomic, so authoritative servers and caches will send different responses.\r\n\r\nYeah! So for DKIM, because most (all that I've seen) providers have a single key per mail service they use (and thus per dkim selector), so likely they'd have global consensus for those. During rotation (once every 6 months or so), yes, likely servers would disagree and then like 1-48 hours later they'd be synced again. That information is also very useful for us because then we can freeze certain operations that take these email proofs, until the keys are updated; but 178/180 days everyone should be in sync which is still a major help for us. We are OK if servers return different IPs; we only care about the TXT records corresponding to a specific domain, which should be globally consistent! So I agree this specific usecase would likely not make sense for usual DNS resolutions, but it would be very useful for our usecase (although the secondary caching idea would probably be useful for the regular DNS usecase as well :)",
+          "createdAt": "2024-01-09T22:29:41Z",
+          "updatedAt": "2024-01-09T22:30:06Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "That is independent from the DNSCrypt protocol, especially since a key feature of DNSCrypt is that queries and responses are not inspected nor modified.\r\n\r\nIt would rather be a feature that DNS caches could implement. The transport protocol is irrelevant. \r\n",
+          "createdAt": "2024-01-09T23:01:37Z",
+          "updatedAt": "2024-01-09T23:01:37Z"
+        },
+        {
+          "author": "Divide-By-0",
+          "authorAssociation": "NONE",
+          "body": "> That is independent from the DNSCrypt protocol, especially since a key feature of DNSCrypt is that queries and responses are not inspected nor modified.\r\n> \r\n> It would rather be a feature that DNS caches could implement. The transport protocol is irrelevant.\r\n\r\nGot it! What is the best project for me to reach out to here for this, or repo to contribute to?",
+          "createdAt": "2024-01-09T23:57:06Z",
+          "updatedAt": "2024-01-10T04:32:52Z"
+        },
+        {
+          "author": "alexhooketh",
+          "authorAssociation": "NONE",
+          "body": "Hi @jedisct1 !\r\n\r\nWe at zk-email would like to propose a soft upgrade to the DNSCrypt protocol.\r\nWhile DNSCrypt v2 fully prevents message tampering, the authenticity of the messages can only be proven by the sides of the connection, that is, only client and server are sure that other side's messages aren't modified. This happens because of X25519 used in the protocol. Such approach is severely limited in the sense that the messages' authority cannot be proven outside of the channel - the client can forge server messages and vice versa.\r\nFor example, zk-email, being a project based on smart contracts, needs a way to obtain DNS records without trusting a federated oracle. If there was a way to cryptographically prove the authenticity of DNS nameservers' messages, it would be possible to implement a quorum-based system that uses a set of the nameservers as a source of trust.\r\n\r\nWe propose an idea of soft, backward-compatible protocol upgrade. It's possible to implement such signature-backed system using additional information RRs in the DNS protocol. They aren't normally read by DNSCrypt v2 client implementations, meaning that a client that does not support the soft upgrade will simply ignore them. The opposite is also true: no existing client implementations check or enforce minor version of the protocol, so the servers that do implement the upgrade can use it to signal its support to clients that are looking for signature-backed connections.\r\nWhat does it mean? We can implement the upgrade, say, v2.1, that does not require servers and clients to upgrade their backends. v2.1 clients will be able to interact with v2.0 servers and vice versa. Thanks to minor versioning and ARs, v2.1-specific data will simply be ignored by older clients.\r\n\r\n![image](https://github.com/DNSCrypt/dnscrypt-protocol/assets/109601951/8365df35-49ff-4300-9a12-ff80b632ef11)\r\n\r\nWhy is standardisation necessary? If the soft upgrade will only be used by our project, its functionality will be isolated in our infrastructure. However, standardisation will allow other projects looking for message authenticity functionality to adopt DNSCrypt. We're interested in promoting DNSCrypt in the ecosystem and we'll work with major servers to adopt it in their infrastructure.\r\n\r\nif you're willing to allow improvements to your protocol, we are ready to fully run the development of a standard and the necessary updates for all major implementations of the protocol, such as dnscrypt-proxy, SecureDNS, YourFriendlyDNS, and more, on our own. If you have questions, feel free to ask us anything. Thanks in advance!",
+          "createdAt": "2024-01-13T20:54:09Z",
+          "updatedAt": "2024-01-13T20:54:09Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "Beyond the DNSCrypt protocol, that doesn't seem trivial, both from a technical and from a deployment perspective.\r\n\r\nA new record type for these signatures needs to be defined. Given the inertia of DNS standard bodies, especially when you're not part of their private club, good luck with that. But we can ignore that, and just pick an arbitrary OPT extended record type. Or abuse the existing `SIG(0)` record type, even though it's assumed to be only used in queries.\r\n\r\nThen, we need to find a canonical way to represent the RR set to be signed, because every intermediate can reorder RRs. The `OPT` section is also going to be an issue, since EDNS0 may or may not be added according to the packet size (which is going to change with the addition of the signature). All names also need to be normalized in order to be compatible with `0x20` random mangling.\r\n\r\nI'm not aware of any existing document nor proposal about canonicalizing DNS RR sets, so the first thing to do would be  to work on that.\r\n\r\nThen, there's the question of TTLs. Caches must decrease TTLs. So, TTLs can't be signed. It also means that caches can keep an old record alive forever. Not sure how that could be solved. Or a copy of TTLs as originally seen by the signer should be added to responses as well. That can be done, especially after RRs have been canonicalized, but that looks like a lot of work.\r\n\r\nFinally, there's the deployment issue. Adding these signatures requires parsing packets, encoding the RRs in a canonical way, computing the signature, and adding the new RR to the original packet. This is going to have a significant CPU impact, for niche use cases. So it is very unlikely that existing public resolvers would enable this.\r\n\r\nIn practice, the protocol would only be used by resolvers specifically operated to serve the ZK Email application.\r\n\r\n",
+          "createdAt": "2024-01-13T21:41:36Z",
+          "updatedAt": "2024-01-13T21:41:36Z"
+        }
+      ]
+    }
+  ],
+  "pulls": [
+    {
+      "number": 3,
+      "id": "MDExOlB1bGxSZXF1ZXN0Mjc1OTg0NDMw",
+      "title": "Fix NaCl crypto_box elliptic curve",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/pull/3",
+      "state": "CLOSED",
+      "author": "wqweto",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2019-05-05T09:56:54Z",
+      "updatedAt": "2022-06-25T21:16:19Z",
+      "baseRepository": "DNSCrypt/dnscrypt-protocol",
+      "baseRefName": "master",
+      "baseRefOid": "cf1e4dd31b80fd957ed4766e4f81a2a1308e45ac",
+      "headRepository": null,
+      "headRefName": "patch-1",
+      "headRefOid": "c59af130a346fefcca52b24dbf92bf8699afe0b3",
+      "closedAt": "2022-06-25T21:16:19Z",
+      "mergedAt": null,
+      "mergedBy": null,
+      "mergeCommit": null,
+      "comments": [],
+      "reviews": []
+    },
+    {
+      "number": 10,
+      "id": "PR_kwDOBsvhTs45gI-e",
+      "title": "Fix endianness, clarification about length-prefixing (TCP)",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/pull/10",
+      "state": "MERGED",
+      "author": "alex14fr",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2022-06-11T10:24:36Z",
+      "updatedAt": "2023-03-09T07:07:24Z",
+      "baseRepository": "DNSCrypt/dnscrypt-protocol",
+      "baseRefName": "master",
+      "baseRefOid": "719f119870407ca6b91c80728d416e0e93ffc905",
+      "headRepository": "alex14fr/dnscrypt-protocol",
+      "headRefName": "patch-1",
+      "headRefOid": "a73fcb388137becb884cd6f4e50255daf76ef2e9",
+      "closedAt": "2023-03-09T07:07:23Z",
+      "mergedAt": "2023-03-09T07:07:23Z",
+      "mergedBy": "jedisct1",
+      "mergeCommit": {
+        "oid": "4c7cc191a655c8dc271d81882c596da5e6da38c8"
+      },
+      "comments": [],
+      "reviews": []
+    },
+    {
+      "number": 13,
+      "id": "PR_kwDOBsvhTs5YdljJ",
+      "title": "Fixed typo in project URL",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/pull/13",
+      "state": "MERGED",
+      "author": "hvt",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2023-08-22T07:24:21Z",
+      "updatedAt": "2023-08-22T11:19:04Z",
+      "baseRepository": "DNSCrypt/dnscrypt-protocol",
+      "baseRefName": "master",
+      "baseRefOid": "43b1ce0d062121964821f101538c79b6c0d33c70",
+      "headRepository": "hvt/dnscrypt-protocol",
+      "headRefName": "url-typo-fix",
+      "headRefOid": "ca6369b9d51c74df043e8083e8c5c44aa5c381b9",
+      "closedAt": "2023-08-22T11:18:53Z",
+      "mergedAt": "2023-08-22T11:18:53Z",
+      "mergedBy": "jedisct1",
+      "mergeCommit": {
+        "oid": "cf700159db0d72669bce54fc6b408305f6e5a67b"
+      },
+      "comments": [
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "Thank you!",
+          "createdAt": "2023-08-22T11:19:04Z",
+          "updatedAt": "2023-08-22T11:19:04Z"
+        }
+      ],
+      "reviews": []
+    }
+  ]
+}
