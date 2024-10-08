@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                           7 February 2024
-Expires: 10 August 2024
+Intended status: Informational                            8 October 2024
+Expires: 11 April 2025
 
 
                          The DNSCrypt protocol
@@ -42,7 +42,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 10 August 2024.
+   This Internet-Draft will expire on 11 April 2025.
 
 Copyright Notice
 
