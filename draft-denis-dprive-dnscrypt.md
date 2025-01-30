@@ -308,80 +308,66 @@ This document has no IANA actions.
 
 The `Box-XChaChaPoly` algorithm combines the `X25519` {{!RFC7748}} key exchange mechanism with a variant of the ChaCha20-Poly1305 construction specified in {{!RFC8439}}.
 
+## Conventions and Definitions
+
+- `x[a..]`: the subarray of `x` starting at index `a`, and extending to the last index of `x`
+- `x[a..b]`: the subarray of `x` starting at index `a` and ending at index `b`.
+- `LOAD32_LE(p)`: returns a 32-bit unsigned integer from the 4-byte array `p`
+- `STORE32_LE(p, x)`: stores the 32-bit unsigned integer `x` into the 4-byte array  `p`
+
 ## HChaCha20
 
-`HChaCha20` is an intermediate step based on the construction and security proof used to create `XSalsa20`, an extended-nonce Salsa20 variant.
+`HChaCha20` is based on the construction and security proof used to create XSalsa20, an extended-nonce variant of Salsa20.
 
-`HChaCha20` is initialized in the same way as the ChaCha20 cipher defined in {{!RFC8439}}, except that `HChaCha20` uses a 128-bit nonce and has no counter. Instead, the block counter is replaced by the first 32 bits of the nonce.
+The `HChaCha20` function takes the following input paramters:
 
-Consider the two figures below, where each non-whitespace character represents one nibble of information about the ChaCha states (all numbers little-endian):
+- `<k>`: secret key
+- `<in>`: a 128-bit input
+
+and returns a 256-bit keyed hash.
+
+The function can be implemented using an existing IETF-compliant `ChaCha20` implementation as follows:
 
 ~~~
-                  cccccccc  cccccccc  cccccccc  cccccccc
-                  kkkkkkkk  kkkkkkkk  kkkkkkkk  kkkkkkkk
-                  kkkkkkkk  kkkkkkkk  kkkkkkkk  kkkkkkkk
-                  bbbbbbbb  nnnnnnnn  nnnnnnnn  nnnnnnnn
+block_bytes = ChaCha20(msg={0}**64, nonce=in[4..16],
+                       counter=LOAD32_LE(in[0..4]), key=k)
 
-           ChaCha20 State: c=constant k=key b=blockcount n=nonce
+block_out[0] = LOAD32_LE(block_bytes[ 0..][0..4]) - 0x61707865
+block_out[1] = LOAD32_LE(block_bytes[ 4..][0..4]) - 0x3320646e
+block_out[2] = LOAD32_LE(block_bytes[ 8..][0..4]) - 0x79622d32
+block_out[3] = LOAD32_LE(block_bytes[12..][0..4]) - 0x6b206574
+block_out[4] =
+   LOAD32_LE(block_bytes[48..][0..4]) - LOAD32_LE(in[ 0..][0..4])
+block_out[5] =
+   LOAD32_LE(block_bytes[52..][0..4]) - LOAD32_LE(in[ 4..][0..4])
+block_out[6] =
+   LOAD32_LE(block_bytes[56..][0..4]) - LOAD32_LE(in[ 8..][0..4])
+block_out[7] =
+   LOAD32_LE(block_bytes[60..][0..4]) - LOAD32_LE(in[12..][0..4])
 
+for i in 0..8:
+    STORE32_LE(out[i * 4..][0..4], blocks_out[i])
 
-                  cccccccc  cccccccc  cccccccc  cccccccc
-                  kkkkkkkk  kkkkkkkk  kkkkkkkk  kkkkkkkk
-                  kkkkkkkk  kkkkkkkk  kkkkkkkk  kkkkkkkk
-                  nnnnnnnn  nnnnnnnn  nnnnnnnn  nnnnnnnn
-
-                 HChaCha20 State: c=constant k=key n=nonce
+return out
 ~~~
-
-After initialization, proceed through the ChaCha rounds as usual. Once the 20 ChaCha rounds have been completed, the first 128 bits and last 128 bits of the ChaCha state (both little-endian) are concatenated, and this 256-bit subkey is returned.
 
 ## Test Vector For The HChaCha20 Block Function
 
-~~~
-   o  Key = 00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f:10:11:12:13:
-      14:15:16:17:18:19:1a:1b:1c:1d:1e:1f.  The key is a sequence of
-      octets with no particular structure before we copy it into the
-      HChaCha state.
+~~~ test-vectors
+k:    000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
-   o  Nonce = (00:00:00:09:00:00:00:4a:00:00:00:00:31:41:59:27)
+in:   000102030405060708090a0b0c0d0e0f
 
-   After setting up the HChaCha state, it looks like this:
-
-                    61707865 3320646e 79622d32 6b206574
-                    03020100 07060504 0b0a0908 0f0e0d0c
-                    13121110 17161514 1b1a1918 1f1e1d1c
-                    09000000 4a000000 00000000 27594131
-
-                     ChaCha state with the key setup.
-
-   After running 20 rounds (10 column rounds interleaved with 10
-   "diagonal rounds"), the HChaCha state looks like this:
-
-                    423b4182 fe7bb227 50420ed3 737d878a
-                    0aa76448 7954cdf3 846acd37 7b3c58ad
-                    77e35583 83e77c12 e0076a2d bc6cd0e5
-                    d5e4f9a0 53a8748a 13c42ec1 dcecd326
-
-                       HChaCha state after 20 rounds
-
-   HChaCha20 will then return only the first and last rows, in little
-   endian, resulting in the following 256-bit key:
-
-                    82413b42 27b27bfe d30e4250 8a877d73
-                    a0f9e4d5 8a74a853 c12ec413 26d3ecdc
-
-                        Resultant HChaCha20 subkey
+out:  51e3ff45a895675c4b33b46c64f4a9ace110d34df6a2ceab486372bacbd3eff6
 ~~~
 
 ## ChaCha20_DJB
 
-ChaCha20 was originally designed to have a 8 byte nonce.
+As opposed to the version standardized for IETF protocols, ChaCha20 was originally designed to have a 8 byte nonce.
 
 For the needs of TLS, {{!RFC8439}} changed this by setting `N_MIN` and `N_MAX` to `12`, at the expense of a smaller internal counter.
 
 DNSCrypt uses ChaCha20 as originally specified, with `N_MIN = N_MAX = 8`. We refer to this variant as `ChaCha20_DJB`.
-
-Common implementations may just refer to it as `ChaCha20`, and the IETF version as `ChaCha20-IETF`.
 
 The internal counter in `ChaCha20_DJB` is 4 bytes larger than `ChaCha20`. There are no other differences between `ChaCha20_DJB` and `ChaCha20`.
 
