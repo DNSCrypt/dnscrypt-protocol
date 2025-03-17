@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                           30 January 2025
-Expires: 3 August 2025
+Intended status: Informational                             17 March 2025
+Expires: 18 September 2025
 
 
                          The DNSCrypt protocol
@@ -42,7 +42,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 3 August 2025.
+   This Internet-Draft will expire on 18 September 2025.
 
 Copyright Notice
 
@@ -690,7 +690,7 @@ Table of Contents
 17.6.  XChaCha20_DJB-Poly1305
 
    XChaCha20 is a stream cipher and offers no integrity guarantees
-   without being combined with a MAC algorithm (e.g.  Poly1305).
+   without being combined with a MAC algorithm (e.g. Poly1305).
 
    XChaCha20_DJB-Poly1305 adds an authentication tag to the ciphertext
    encrypted with XChaCha20_DJB.
