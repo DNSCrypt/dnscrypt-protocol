@@ -65,40 +65,41 @@ Table of Contents
 
    1.  Introduction
    2.  Conventions And Definitions
-     2.1.  Protocol Components
-   3.  Protocol Description
-     3.1.  Overview
-     3.2.  Transport
-     3.3.  Session Establishment
-     3.4.  Query Processing
-       3.4.1.  Padding For Client Queries Over UDP
-       3.4.2.  Client Queries Over UDP
-       3.4.3.  Padding For Client Queries Over TCP
-       3.4.4.  Client Queries Over TCP
-     3.5.  Certificates
-   4.  Implementation Status
-   5.  Security Considerations
-     5.1.  Protocol Security
-     5.2.  Implementation Security
-     5.3.  Attack Mitigation
-     5.4.  Privacy Considerations
-     5.5.  Operational Security
-   6.  Operational Considerations
-   7.  Anonymized DNSCrypt
-     7.1.  Protocol Overview
-     7.2.  Client Queries
-     7.3.  Relay Behavior
-     7.4.  Operational Considerations
-   8.  IANA Considerations
-   9.  Appendix 1: The Box-XChaChaPoly Algorithm
-     9.1.  Conventions and Definitions
-     9.2.  HChaCha20
-     9.3.  Test Vector For The HChaCha20 Block Function
-     9.4.  ChaCha20_DJB
-     9.5.  XChaCha20_DJB
-     9.6.  XChaCha20_DJB-Poly1305
-     9.7.  The Box-XChaChaPoly Algorithm
-   10. Normative References
+   3.  Protocol Flow
+   4.  Protocol Components
+   5.  Protocol Description
+     5.1.  Overview
+     5.2.  Transport
+     5.3.  Session Establishment
+     5.4.  Query Processing
+       5.4.1.  Padding For Client Queries Over UDP
+       5.4.2.  Client Queries Over UDP
+       5.4.3.  Padding For Client Queries Over TCP
+       5.4.4.  Client Queries Over TCP
+     5.5.  Certificates
+   6.  Implementation Status
+   7.  Security Considerations
+     7.1.  Protocol Security
+     7.2.  Implementation Security
+     7.3.  Attack Mitigation
+     7.4.  Privacy Considerations
+     7.5.  Operational Security
+   8.  Operational Considerations
+   9.  Anonymized DNSCrypt
+     9.1.  Protocol Overview
+     9.2.  Client Queries
+     9.3.  Relay Behavior
+     9.4.  Operational Considerations
+   10. IANA Considerations
+   11. Appendix 1: The Box-XChaChaPoly Algorithm
+     11.1.  Conventions and Definitions
+     11.2.  HChaCha20
+     11.3.  Test Vector For The HChaCha20 Block Function
+     11.4.  ChaCha20_DJB
+     11.5.  XChaCha20_DJB
+     11.6.  XChaCha20_DJB-Poly1305
+     11.7.  The Box-XChaChaPoly Algorithm
+   12. Normative References
    Author's Address
 
 1.  Introduction
@@ -124,7 +125,92 @@ Table of Contents
    BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
    capitals, as shown here.
 
-2.1.  Protocol Components
+3.  Protocol Flow
+
+   The DNSCrypt protocol consists of two distinct phases:
+
+   1.  *Initial Setup Phase* (one-time):
+
+       *  The client requests the server's certificate
+
+       *  The server responds with its certificate containing public
+          keys
+
+   2.  *Ongoing Communication Phase* (repeated as needed):
+
+       *  The client sends encrypted DNS queries
+
+       *  The server responds with encrypted DNS responses
+
+   The following diagram illustrates the complete protocol flow:
+
+   +--------+                    +--------+
+   |        |                    |        |
+   | Client |                    | Server |
+   |        |                    |        |
+   +--------+                    +--------+
+       |                             |
+       | 1. Request Certificate      |
+       |---------------------------->|
+       |                             |
+       | 2. Certificate Response     |
+       |<----------------------------|
+       |                             |
+       | 3. Encrypted Query          |
+       |---------------------------->|
+       |                             |
+       | 4. Encrypted Query          |
+       |---------------------------->|
+       |                             |
+       | 5. Encrypted Response       |
+       |<----------------------------|
+       |                             |
+       | 6. Encrypted Response       |
+       |<----------------------------|
+       |                             |
+       | 7. Encrypted Query          |
+       |---------------------------->|
+       |                             |
+       | 8. Encrypted Response       |
+       |<----------------------------|
+       |                             |
+       |                             |
+
+   The initial setup phase (steps 1-2) occurs only when:
+
+   *  A client first starts using a DNSCrypt server
+
+   *  The client's cached certificate expires
+
+   *  The client detects a certificate with a higher serial number
+
+   After the initial setup, the client and server engage in the ongoing
+   communication phase (steps 3-8), where encrypted queries and
+   responses are exchanged as needed.  This phase can be repeated
+   indefinitely until the certificate expires or a new certificate is
+   available.
+
+   Key characteristics of the ongoing communication phase:
+
+   1.  *Stateless Operation*: Each query and response is independent.
+       The server does not maintain state between queries.
+
+   2.  *Out-of-Order Responses*: Responses may arrive in a different
+       order than the queries were sent.  Each response is self-
+       contained and can be processed independently.
+
+   3.  *Multiple Responses*: A single query may result in multiple
+       responses, and responses can be received without sending new
+       queries.  For example, a server might send additional responses
+       for a query that has multiple answers or requires additional
+       processing.
+
+   4.  *Asynchronous Communication*: The protocol does not require
+       strict request-response pairing.  A client can send multiple
+       queries before receiving responses, and responses can be
+       processed as they arrive.
+
+4.  Protocol Components
 
    Definitions for client queries:
 
@@ -202,9 +288,46 @@ Table of Contents
 
    *  <resolver-response-pad>: the variable-length padding.
 
-3.  Protocol Description
+   The following diagram shows the structure of a DNSCrypt query packet:
 
-3.1.  Overview
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         Client Magic                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                      Client Public Key                        +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                        Client Nonce                           +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                       Encrypted Query                         +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The following diagram shows the structure of a DNSCrypt response
+   packet:
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Resolver Magic                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                          Nonce                                +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                      Encrypted Response                       +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+5.  Protocol Description
+
+5.1.  Overview
 
    The DNSCrypt protocol operates through the following steps:
 
@@ -257,7 +380,7 @@ Table of Contents
       vulnerabilities in regular DNS over UDP: amplification [RFC5358]
       and fragmentation attacks.
 
-3.2.  Transport
+5.2.  Transport
 
    The DNSCrypt protocol can use the UDP and TCP transport protocols.
    DNSCrypt clients and resolvers SHOULD support the protocol via UDP,
@@ -266,7 +389,7 @@ Table of Contents
    Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by
    default.
 
-3.3.  Session Establishment
+5.3.  Session Establishment
 
    From the client's perspective, a DNSCrypt session is initiated when
    the client sends an unauthenticated DNS query to a DNSCrypt-capable
@@ -301,9 +424,9 @@ Table of Contents
    verify, decrypt the query, and then encrypt the response utilizing
    identical parameters.
 
-3.4.  Query Processing
+5.4.  Query Processing
 
-3.4.1.  Padding For Client Queries Over UDP
+5.4.1.  Padding For Client Queries Over UDP
 
    Before encryption takes place, queries are padded according to the
    ISO/IEC 7816-4 standard.  Padding begins with a single byte holding
@@ -321,7 +444,7 @@ Table of Contents
    MUST be a multiple of 64 bytes.  It represents the minimum permitted
    length for a client query, inclusive of padding.
 
-3.4.2.  Client Queries Over UDP
+5.4.2.  Client Queries Over UDP
 
    UDP-based client queries need to follow the padding guidelines
    outlined in section 3.
@@ -356,7 +479,7 @@ Table of Contents
    The client MAY decrease <min-query-len>, but the length MUST remain a
    multiple of 64 bytes.
 
-3.4.3.  Padding For Client Queries Over TCP
+5.4.3.  Padding For Client Queries Over TCP
 
    Queries MUST undergo padding using the ISO/IEC 7816-4 format before
    being encrypted.  The padding starts with a byte valued 0x80 followed
@@ -384,7 +507,7 @@ Table of Contents
 
    <56-bytes-query> 0x80 (0x00 * 199)
 
-3.4.4.  Client Queries Over TCP
+5.4.4.  Client Queries Over TCP
 
    The sole differences between encrypted client queries transmitted via
    TCP and those sent using UDP lie in the padding length calculation
@@ -402,7 +525,37 @@ Table of Contents
    comply with this revision of the protocol, which prohibits multiple
    transactions over the same TCP connection.
 
-3.5.  Certificates
+5.5.  Certificates
+
+   The following diagram shows the structure of a DNSCrypt certificate:
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         Cert Magic                            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    ES Version    | Protocol Minor Version    |   Reserved    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                         Signature                             +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                      Resolver Public Key                      +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Client Magic                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          Serial                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          TS Start                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          TS End                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                        Extensions                             +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
    To initiate a DNSCrypt session, a client transmits an ordinary
    unencrypted TXT DNS query to the resolver's IP address and DNSCrypt
@@ -525,7 +678,7 @@ Table of Contents
    *  A certificate with a higher serial number than the current one is
       available.
 
-4.  Implementation Status
+6.  Implementation Status
 
    _Note: This section is to be removed before publishing as an RFC._
 
@@ -534,30 +687,35 @@ Table of Contents
    comprehensive list of known implementations can be found at
    https://dnscrypt.info/implementations.
 
-5.  Security Considerations
+7.  Security Considerations
 
    This section discusses security considerations for the DNSCrypt
    protocol.
 
-5.1.  Protocol Security
+7.1.  Protocol Security
 
    The DNSCrypt protocol provides several security benefits:
 
    1.  *Confidentiality*: DNS queries and responses are encrypted using
        XChaCha20-Poly1305 [RFC8439], preventing eavesdropping of DNS
-       traffic.
+       traffic.  For example, a query for "example.com" would be
+       encrypted and appear as random data to an observer.
 
    2.  *Integrity*: Message authentication using Poly1305 [RFC8439]
-       ensures that responses cannot be tampered with in transit.
+       ensures that responses cannot be tampered with in transit.  Any
+       modification to the encrypted response would be detected and
+       rejected by the client.
 
    3.  *Authentication*: The use of X25519 [RFC7748] for key exchange
        and Ed25519 for certificate signatures provides strong
-       authentication of resolvers.
+       authentication of resolvers.  Clients can verify they are
+       communicating with the intended resolver and not an impostor.
 
    4.  *Forward Secrecy*: Short-term key pairs are used for each
-       session, providing forward secrecy.
+       session, providing forward secrecy.  Even if a long-term key is
+       compromised, past communications remain secure.
 
-5.2.  Implementation Security
+7.2.  Implementation Security
 
    Implementations should consider the following security aspects:
 
@@ -571,6 +729,9 @@ Table of Contents
        *  Provider secret keys used for certificate signing SHOULD be
           stored in hardware security modules (HSMs)
 
+       *  Example: A resolver might generate new key pairs daily at
+          midnight UTC
+
    2.  *Nonce Management*:
 
        *  Nonces MUST NOT be reused for a given shared secret
@@ -579,7 +740,10 @@ Table of Contents
           replay attacks
 
        *  Resolvers SHOULD verify that nonces are within a reasonable
-          time window
+          time window (e.g., ±5 minutes)
+
+       *  Example: A nonce might be constructed as: timestamp ||
+          random_bytes
 
    3.  *Padding*:
 
@@ -588,6 +752,9 @@ Table of Contents
 
        *  The minimum query length SHOULD be adjusted based on network
           conditions
+
+       *  Example: A 50-byte query might be padded to 256 bytes to
+          prevent size-based fingerprinting
 
    4.  *Certificate Validation*:
 
@@ -598,53 +765,88 @@ Table of Contents
 
        *  Clients MUST prefer certificates with higher serial numbers
 
-5.3.  Attack Mitigation
+       *  Example: A client might cache valid certificates and check for
+          updates hourly
+
+7.3.  Attack Mitigation
 
    DNSCrypt provides protection against several types of attacks:
 
    1.  *DNS Spoofing*: The use of authenticated encryption prevents
-       spoofed responses
+       spoofed responses.  An attacker cannot forge responses without
+       the server's secret key.
 
    2.  *Amplification Attacks*: The padding requirements and minimum
-       query length help prevent amplification attacks [RFC5358]
+       query length help prevent amplification attacks [RFC5358].  For
+       example, a 256-byte minimum query size limits the amplification
+       factor.
 
    3.  *Fragmentation Attacks*: The protocol handles fragmentation in a
-       way that prevents certain types of attacks
+       way that prevents certain types of attacks.  Large responses are
+       properly fragmented and reassembled.
 
    4.  *Replay Attacks*: The use of nonces and timestamps helps prevent
-       replay attacks
+       replay attacks.  A replayed query would be detected due to nonce
+       reuse.
 
-5.4.  Privacy Considerations
+7.4.  Privacy Considerations
 
    While DNSCrypt encrypts DNS traffic, there are some privacy
    considerations:
 
    1.  *Resolver Knowledge*: Resolvers can still see the client's IP
-       address unless Anonymized DNSCrypt is used
+       address unless Anonymized DNSCrypt is used.  This can reveal the
+       client's location and network.
 
    2.  *Query Patterns*: Even with encryption, the size and timing of
-       queries may reveal information
+       queries may reveal information.  Padding helps mitigate this but
+       doesn't eliminate it completely.
 
    3.  *Certificate Requests*: Initial certificate requests are
-       unencrypted and may reveal client capabilities
+       unencrypted and may reveal client capabilities.  This is a one-
+       time exposure per session.
 
-5.5.  Operational Security
+7.5.  Operational Security
 
    Operators should consider:
 
    1.  *Key Distribution*: Provider public keys should be distributed
-       securely to clients
+       securely to clients.  This might involve:
+
+       *  Publishing keys on secure websites
+
+       *  Using DNSSEC-signed records
+
+       *  Including keys in software distributions
 
    2.  *Certificate Management*: Certificates should be signed on
-       dedicated hardware, not on resolvers
+       dedicated hardware, not on resolvers.  This provides:
+
+       *  Better key protection
+
+       *  Centralized certificate management
+
+       *  Reduced attack surface
 
    3.  *Access Control*: Resolvers may implement access control based on
-       client public keys
+       client public keys.  This can:
+
+       *  Prevent abuse
+
+       *  Enable service differentiation
+
+       *  Support business models
 
    4.  *Monitoring*: Operators should monitor for unusual patterns that
-       may indicate attacks
+       may indicate attacks:
 
-6.  Operational Considerations
+       *  High query rates from single clients
+
+       *  Unusual query patterns
+
+       *  Certificate request anomalies
+
+8.  Operational Considerations
 
    Special attention should be paid to the uniqueness of the generated
    secret keys.
@@ -678,7 +880,7 @@ Table of Contents
    operation for each query.  This makes the computational overhead of
    DNSCrypt negligible compared to plain DNS.
 
-7.  Anonymized DNSCrypt
+9.  Anonymized DNSCrypt
 
    While DNSCrypt encrypts DNS traffic, DNS server operators can still
    observe client IP addresses.  Anonymized DNSCrypt is an extension to
@@ -686,7 +888,7 @@ Table of Contents
    by an intermediate server, hiding the client's IP address from the
    resolver.
 
-7.1.  Protocol Overview
+9.1.  Protocol Overview
 
    Anonymized DNSCrypt works by having the client send encrypted queries
    to a relay server, which then forwards them to the actual DNSCrypt
@@ -706,7 +908,26 @@ Table of Contents
 
    *  The protocol works over both UDP and TCP
 
-7.2.  Client Queries
+9.2.  Client Queries
+
+   The following diagram shows the structure of an Anonymized DNSCrypt
+   query packet:
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         Anon Magic                            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                        Server IP (IPv6)                       +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        Server Port        |                                   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+                                   +
+   |                                                               |
+   +                     DNSCrypt Query                            +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
    An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed
    with information about the target server:
@@ -731,7 +952,7 @@ Table of Contents
 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
 0x01 0xbb
 
-7.3.  Relay Behavior
+9.3.  Relay Behavior
 
    Relays MUST:
 
@@ -762,7 +983,7 @@ Table of Contents
 
        *  Forward valid responses unmodified to the client
 
-7.4.  Operational Considerations
+9.4.  Operational Considerations
 
    When using Anonymized DNSCrypt:
 
@@ -780,17 +1001,17 @@ Table of Contents
 
        *  Monitor for abuse
 
-8.  IANA Considerations
+10.  IANA Considerations
 
    This document has no IANA actions.
 
-9.  Appendix 1: The Box-XChaChaPoly Algorithm
+11.  Appendix 1: The Box-XChaChaPoly Algorithm
 
    The Box-XChaChaPoly algorithm combines the X25519 [RFC7748] key
    exchange mechanism with a variant of the ChaCha20-Poly1305
    construction specified in [RFC8439].
 
-9.1.  Conventions and Definitions
+11.1.  Conventions and Definitions
 
    *  x[a..]: the subarray of x starting at index a, and extending to
       the last index of x
@@ -804,7 +1025,7 @@ Table of Contents
    *  STORE32_LE(p, x): stores the 32-bit unsigned integer x into the
       4-byte array p
 
-9.2.  HChaCha20
+11.2.  HChaCha20
 
    HChaCha20 is based on the construction and security proof used to
    create XSalsa20, an extended-nonce variant of Salsa20.
@@ -841,7 +1062,7 @@ Table of Contents
 
    return out
 
-9.3.  Test Vector For The HChaCha20 Block Function
+11.3.  Test Vector For The HChaCha20 Block Function
 
    k:    000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
@@ -849,7 +1070,7 @@ Table of Contents
 
    out:  51e3ff45a895675c4b33b46c64f4a9ace110d34df6a2ceab486372bacbd3eff6
 
-9.4.  ChaCha20_DJB
+11.4.  ChaCha20_DJB
 
    As opposed to the version standardized for IETF protocols, ChaCha20
    was originally designed to have a 8 byte nonce.
@@ -863,7 +1084,7 @@ Table of Contents
    The internal counter in ChaCha20_DJB is 4 bytes larger than ChaCha20.
    There are no other differences between ChaCha20_DJB and ChaCha20.
 
-9.5.  XChaCha20_DJB
+11.5.  XChaCha20_DJB
 
    XChaCha20_DJB can be constructed from an existing ChaCha20
    implementation and the HChaCha20 function.
@@ -875,7 +1096,7 @@ Table of Contents
 
    2.  Use the subkey and remaining 8 byte nonce with ChaCha20_DJB.
 
-9.6.  XChaCha20_DJB-Poly1305
+11.6.  XChaCha20_DJB-Poly1305
 
    XChaCha20 is a stream cipher and offers no integrity guarantees
    without being combined with a MAC algorithm (e.g. Poly1305).
@@ -897,7 +1118,7 @@ Table of Contents
 
    *  XChaCha20_DJB-Poly1305(<k>, <m>): Poly1305(<ct>) || <ct>
 
-9.7.  The Box-XChaChaPoly Algorithm
+11.7.  The Box-XChaChaPoly Algorithm
 
    The Box-XChaChaPoly algorithm combines the key exchange mechanism
    X25519 defined [RFC7748] with the XChaCha20_DJB-Poly1305
@@ -915,7 +1136,7 @@ Table of Contents
 
    *  Box-XChaChaPoly(pk, sk, m): XChaCha20_DJB-Poly1305(<sk'>, <m>)
 
-10.  Normative References
+12.  Normative References
 
    [RFC1035]  Mockapetris, P., "Domain names - implementation and
               specification", STD 13, RFC 1035, DOI 10.17487/RFC1035,
