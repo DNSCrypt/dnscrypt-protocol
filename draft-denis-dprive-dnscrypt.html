@@ -4,25 +4,23 @@
 <meta charset="utf-8">
 <meta content="Common,Latin" name="scripts">
 <meta content="initial-scale=1.0" name="viewport">
-<title>The DNSCrypt protocol</title>
+<title>The DNSCrypt Protocol</title>
 <meta content="Frank Denis" name="author">
 <meta content="
-       The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation. 
+       The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation, providing a standardized approach to securing DNS communications. DNSCrypt improves confidentiality, integrity, and resistance to attacks affecting the original DNS protocol while maintaining compatibility with existing DNS infrastructure. 
     " name="description">
-<meta content="xml2rfc 3.28.0" name="generator">
-<meta content="dns" name="keyword">
-<meta content="encryption" name="keyword">
-<meta content="privacy" name="keyword">
+<meta content="xml2rfc 3.28.1" name="generator">
+<meta content="Internet-Draft" name="keyword">
 <meta content="draft-denis-dprive-dnscrypt-latest" name="ietf.draft">
 <!-- Generator version information:
-  xml2rfc 3.28.0
+  xml2rfc 3.28.1
     Python 3.12.9
     ConfigArgParse 1.7
     google-i18n-address 3.1.1
     intervaltree 3.1.0
-    Jinja2 3.1.5
+    Jinja2 3.1.6
     lxml 5.3.0
-    platformdirs 4.3.6
+    platformdirs 4.3.7
     pycountry 24.6.1
     PyYAML 6.0.2
     requests 2.32.3
@@ -1046,11 +1044,11 @@ svg :is([fill="white"], [fill^="#fff"]) {
 <thead><tr>
 <td class="left">Internet-Draft</td>
 <td class="center">DNSCrypt</td>
-<td class="right">March 2025</td>
+<td class="right">April 2025</td>
 </tr></thead>
 <tfoot><tr>
 <td class="left">Denis</td>
-<td class="center">Expires 18 September 2025</td>
+<td class="center">Expires 17 October 2025</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1063,12 +1061,12 @@ svg :is([fill="white"], [fill^="#fff"]) {
 <dd class="internet-draft">draft-denis-dprive-dnscrypt-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2025-03-17" class="published">17 March 2025</time>
+<time datetime="2025-04-15" class="published">15 April 2025</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Informational</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2025-09-18">18 September 2025</time></dd>
+<dd class="expires"><time datetime="2025-10-17">17 October 2025</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1078,10 +1076,10 @@ svg :is([fill="white"], [fill^="#fff"]) {
 </dd>
 </dl>
 </div>
-<h1 id="title">The DNSCrypt protocol</h1>
+<h1 id="title">The DNSCrypt Protocol</h1>
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
-<p id="section-abstract-1">The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-1">The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation, providing a standardized approach to securing DNS communications. DNSCrypt improves confidentiality, integrity, and resistance to attacks affecting the original DNS protocol while maintaining compatibility with existing DNS infrastructure.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
 </section>
 <section class="note rfcEditorRemove" id="section-note.1">
       <h2 id="name-about-this-document">
@@ -1089,6 +1087,7 @@ svg :is([fill="white"], [fill^="#fff"]) {
       </h2>
 <p id="section-note.1-1">This note is to be removed before publishing as an RFC.<a href="#section-note.1-1" class="pilcrow">¶</a></p>
 <p id="section-note.1-2">
+        The latest revision of this draft can be found at <span><a href="https://dnscrypt.github.io/dnscrypt-protocol/">https://dnscrypt.github.io/dnscrypt-protocol/</a></span>.
         Status information for this document may be found at <span><a href="https://datatracker.ietf.org/doc/draft-denis-dprive-dnscrypt/">https://datatracker.ietf.org/doc/draft-denis-dprive-dnscrypt/</a></span>.<a href="#section-note.1-2" class="pilcrow">¶</a></p>
 <p id="section-note.1-3">Source for this draft and an issue tracker can be found at
         <span><a href="https://github.com/DNSCrypt/dnscrypt-protocol">https://github.com/DNSCrypt/dnscrypt-protocol</a></span>.<a href="#section-note.1-3" class="pilcrow">¶</a></p>
@@ -1112,7 +1111,7 @@ svg :is([fill="white"], [fill^="#fff"]) {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 18 September 2025.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 17 October 2025.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1179,6 +1178,23 @@ svg :is([fill="white"], [fill^="#fff"]) {
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
             <p id="section-toc.1-1.14.1"><a href="#section-14" class="auto internal xref">14</a>. <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.1">
+                <p id="section-toc.1-1.14.2.1.1"><a href="#section-14.1" class="auto internal xref">14.1</a>.  <a href="#name-protocol-security" class="internal xref">Protocol Security</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.2">
+                <p id="section-toc.1-1.14.2.2.1"><a href="#section-14.2" class="auto internal xref">14.2</a>.  <a href="#name-implementation-security" class="internal xref">Implementation Security</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.3">
+                <p id="section-toc.1-1.14.2.3.1"><a href="#section-14.3" class="auto internal xref">14.3</a>.  <a href="#name-attack-mitigation" class="internal xref">Attack Mitigation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.4">
+                <p id="section-toc.1-1.14.2.4.1"><a href="#section-14.4" class="auto internal xref">14.4</a>.  <a href="#name-privacy-considerations" class="internal xref">Privacy Considerations</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.5">
+                <p id="section-toc.1-1.14.2.5.1"><a href="#section-14.5" class="auto internal xref">14.5</a>.  <a href="#name-operational-security" class="internal xref">Operational Security</a></p>
+</li>
+            </ul>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
             <p id="section-toc.1-1.15.1"><a href="#section-15" class="auto internal xref">15</a>. <a href="#name-operational-considerations" class="internal xref">Operational Considerations</a></p>
@@ -1227,13 +1243,33 @@ svg :is([fill="white"], [fill^="#fff"]) {
       <h2 id="name-introduction">
 <a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
       </h2>
-<p id="section-1-1">The document defines the DNSCrypt protocol, which encrypts and authenticates DNS <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span> queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.<a href="#section-1-1" class="pilcrow">¶</a></p>
-<p id="section-1-2">The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy.<a href="#section-1-2" class="pilcrow">¶</a></p>
-<p id="section-1-3">DNS packets do not need to be parsed or rewritten. DNSCrypt simply wraps them in a secure, encrypted container. Encrypted packets are then exchanged the same way as regular packets, using the standard DNS transport mechanisms. Queries and responses are sent over UDP, falling back to TCP for large responses only if necessary.<a href="#section-1-3" class="pilcrow">¶</a></p>
-<p id="section-1-4">DNSCrypt is stateless. Every query can be processed independently from other queries. There are no session identifiers. In order to better defend against fingerprinting, clients can replace their keys whenever they want, without extra interactions with servers.<a href="#section-1-4" class="pilcrow">¶</a></p>
-<p id="section-1-5">DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").<a href="#section-1-5" class="pilcrow">¶</a></p>
-<p id="section-1-6">Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic. Similarly, DNSCrypt and DoH can also share the same IP address and TCP port.<a href="#section-1-6" class="pilcrow">¶</a></p>
-<p id="section-1-7">Lastly, DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-1">The Domain Name System (DNS) <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span> is a critical component of Internet infrastructure, but its original design did not include security features to protect the confidentiality and integrity of queries and responses. This document defines the DNSCrypt protocol, which encrypts and authenticates DNS queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-2">The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy. It provides a standardized approach to securing DNS communications while maintaining compatibility with existing DNS infrastructure.<a href="#section-1-2" class="pilcrow">¶</a></p>
+<p id="section-1-3">Key features of the DNSCrypt protocol include:<a href="#section-1-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-1-4.1">
+          <p id="section-1-4.1.1">Stateless operation: Every query can be processed independently from other queries, with no session identifiers required.<a href="#section-1-4.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-4.2">
+          <p id="section-1-4.2.1">Flexible key management: Clients can replace their keys whenever they want, without extra interactions with servers.<a href="#section-1-4.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-4.3">
+          <p id="section-1-4.3.1">Proxy support: DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").<a href="#section-1-4.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-4.4">
+          <p id="section-1-4.4.1">Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.<a href="#section-1-4.4.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-4.5">
+          <p id="section-1-4.5.1">Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.<a href="#section-1-4.5.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-1-5">The protocol uses modern cryptographic primitives including X25519 <span>[<a href="#RFC7748" class="cite xref">RFC7748</a>]</span> for key exchange and XChaCha20-Poly1305 <span>[<a href="#RFC8439" class="cite xref">RFC8439</a>]</span> for authenticated encryption, providing strong security guarantees while maintaining high performance.<a href="#section-1-5" class="pilcrow">¶</a></p>
+<p id="section-1-6">This document specifies version 2 of the DNSCrypt protocol, which represents the current recommended version for implementation.<a href="#section-1-6" class="pilcrow">¶</a></p>
+<p id="section-1-7">DNS packets do not need to be parsed or rewritten. DNSCrypt simply wraps them in a secure, encrypted container. Encrypted packets are then exchanged the same way as regular packets, using the standard DNS transport mechanisms. Queries and responses are sent over UDP, falling back to TCP for large responses only if necessary.<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-8">DNSCrypt is stateless. Every query can be processed independently from other queries. There are no session identifiers. In order to better defend against fingerprinting, clients can replace their keys whenever they want, without extra interactions with servers.<a href="#section-1-8" class="pilcrow">¶</a></p>
+<p id="section-1-9">DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").<a href="#section-1-9" class="pilcrow">¶</a></p>
+<p id="section-1-10">Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic. Similarly, DNSCrypt and DoH can also share the same IP address and TCP port.<a href="#section-1-10" class="pilcrow">¶</a></p>
+<p id="section-1-11">Lastly, DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.<a href="#section-1-11" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="conventions-and-definitions">
@@ -1554,9 +1590,8 @@ same key.<a href="#section-12-13" class="pilcrow">¶</a></p>
       <h2 id="name-implementation-status">
 <a href="#section-13" class="section-number selfRef">13. </a><a href="#name-implementation-status" class="section-name selfRef">Implementation Status</a>
       </h2>
-<p id="section-13-1"><em>This note is to be removed before publishing as an RFC.</em><a href="#section-13-1" class="pilcrow">¶</a></p>
-<p id="section-13-2">Multiple implementations of the protocol described in this document have been developed and verified for interoperability.<a href="#section-13-2" class="pilcrow">¶</a></p>
-<p id="section-13-3">A comprehensive list of known implementations can be found at <span><a href="https://dnscrypt.info/implementations">https://dnscrypt.info/implementations</a></span>.<a href="#section-13-3" class="pilcrow">¶</a></p>
+<p id="section-13-1"><em>Note: This section is to be removed before publishing as an RFC.</em><a href="#section-13-1" class="pilcrow">¶</a></p>
+<p id="section-13-2">Multiple implementations of the protocol described in this document have been developed and verified for interoperability. A comprehensive list of known implementations can be found at <span><a href="https://dnscrypt.info/implementations">https://dnscrypt.info/implementations</a></span>.<a href="#section-13-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="security-considerations">
@@ -1564,7 +1599,154 @@ same key.<a href="#section-12-13" class="pilcrow">¶</a></p>
       <h2 id="name-security-considerations">
 <a href="#section-14" class="section-number selfRef">14. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
       </h2>
-<p id="section-14-1">DNSCrypt does not protect against attacks on DNS infrastructure.<a href="#section-14-1" class="pilcrow">¶</a></p>
+<div id="protocol-security">
+<section id="section-14.1">
+        <h3 id="name-protocol-security">
+<a href="#section-14.1" class="section-number selfRef">14.1. </a><a href="#name-protocol-security" class="section-name selfRef">Protocol Security</a>
+        </h3>
+<p id="section-14.1-1">The DNSCrypt protocol provides several security benefits:<a href="#section-14.1-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-14.1-2">
+<li id="section-14.1-2.1">
+            <p id="section-14.1-2.1.1"><strong>Confidentiality</strong>: DNS queries and responses are encrypted using XChaCha20-Poly1305, preventing eavesdropping of DNS traffic.<a href="#section-14.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.1-2.2">
+            <p id="section-14.1-2.2.1"><strong>Integrity</strong>: Message authentication using Poly1305 ensures that responses cannot be tampered with in transit.<a href="#section-14.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.1-2.3">
+            <p id="section-14.1-2.3.1"><strong>Authentication</strong>: The use of X25519 for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers.<a href="#section-14.1-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.1-2.4">
+            <p id="section-14.1-2.4.1"><strong>Forward Secrecy</strong>: Short-term key pairs are used for each session, providing forward secrecy.<a href="#section-14.1-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+</section>
+</div>
+<div id="implementation-security">
+<section id="section-14.2">
+        <h3 id="name-implementation-security">
+<a href="#section-14.2" class="section-number selfRef">14.2. </a><a href="#name-implementation-security" class="section-name selfRef">Implementation Security</a>
+        </h3>
+<p id="section-14.2-1">Implementations should consider the following security aspects:<a href="#section-14.2-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-14.2-2">
+<li id="section-14.2-2.1">
+            <p id="section-14.2-2.1.1"><strong>Key Management</strong>:<a href="#section-14.2-2.1.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-14.2-2.1.2.1">
+                <p id="section-14.2-2.1.2.1.1">Resolvers <span class="bcp14">MUST</span> rotate their short-term key pairs at least every 24 hours<a href="#section-14.2-2.1.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.1.2.2">
+                <p id="section-14.2-2.1.2.2.1">Previous secret keys <span class="bcp14">MUST</span> be securely erased after rotation<a href="#section-14.2-2.1.2.2.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.1.2.3">
+                <p id="section-14.2-2.1.2.3.1">Provider secret keys used for certificate signing <span class="bcp14">SHOULD</span> be stored in hardware security modules (HSMs)<a href="#section-14.2-2.1.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+          <li id="section-14.2-2.2">
+            <p id="section-14.2-2.2.1"><strong>Nonce Management</strong>:<a href="#section-14.2-2.2.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-14.2-2.2.2.1">
+                <p id="section-14.2-2.2.2.1.1">Nonces <span class="bcp14">MUST NOT</span> be reused for a given shared secret<a href="#section-14.2-2.2.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.2.2.2">
+                <p id="section-14.2-2.2.2.2.1">Clients <span class="bcp14">SHOULD</span> include timestamps in their nonces to prevent replay attacks<a href="#section-14.2-2.2.2.2.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.2.2.3">
+                <p id="section-14.2-2.2.2.3.1">Resolvers <span class="bcp14">SHOULD</span> verify that nonces are within a reasonable time window<a href="#section-14.2-2.2.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+          <li id="section-14.2-2.3">
+            <p id="section-14.2-2.3.1"><strong>Padding</strong>:<a href="#section-14.2-2.3.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-14.2-2.3.2.1">
+                <p id="section-14.2-2.3.2.1.1">Implementations <span class="bcp14">MUST</span> use the specified padding scheme to prevent traffic analysis<a href="#section-14.2-2.3.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.3.2.2">
+                <p id="section-14.2-2.3.2.2.1">The minimum query length <span class="bcp14">SHOULD</span> be adjusted based on network conditions<a href="#section-14.2-2.3.2.2.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+          <li id="section-14.2-2.4">
+            <p id="section-14.2-2.4.1"><strong>Certificate Validation</strong>:<a href="#section-14.2-2.4.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-14.2-2.4.2.1">
+                <p id="section-14.2-2.4.2.1.1">Clients <span class="bcp14">MUST</span> verify certificate signatures using the provider's public key<a href="#section-14.2-2.4.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.4.2.2">
+                <p id="section-14.2-2.4.2.2.1">Certificates <span class="bcp14">MUST</span> be checked for validity periods<a href="#section-14.2-2.4.2.2.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-14.2-2.4.2.3">
+                <p id="section-14.2-2.4.2.3.1">Clients <span class="bcp14">MUST</span> prefer certificates with higher serial numbers<a href="#section-14.2-2.4.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+        </ol>
+</section>
+</div>
+<div id="attack-mitigation">
+<section id="section-14.3">
+        <h3 id="name-attack-mitigation">
+<a href="#section-14.3" class="section-number selfRef">14.3. </a><a href="#name-attack-mitigation" class="section-name selfRef">Attack Mitigation</a>
+        </h3>
+<p id="section-14.3-1">DNSCrypt provides protection against several types of attacks:<a href="#section-14.3-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-14.3-2">
+<li id="section-14.3-2.1">
+            <p id="section-14.3-2.1.1"><strong>DNS Spoofing</strong>: The use of authenticated encryption prevents spoofed responses<a href="#section-14.3-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.3-2.2">
+            <p id="section-14.3-2.2.1"><strong>Amplification Attacks</strong>: The padding requirements and minimum query length help prevent amplification attacks<a href="#section-14.3-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.3-2.3">
+            <p id="section-14.3-2.3.1"><strong>Fragmentation Attacks</strong>: The protocol handles fragmentation in a way that prevents certain types of attacks<a href="#section-14.3-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.3-2.4">
+            <p id="section-14.3-2.4.1"><strong>Replay Attacks</strong>: The use of nonces and timestamps helps prevent replay attacks<a href="#section-14.3-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+</section>
+</div>
+<div id="privacy-considerations">
+<section id="section-14.4">
+        <h3 id="name-privacy-considerations">
+<a href="#section-14.4" class="section-number selfRef">14.4. </a><a href="#name-privacy-considerations" class="section-name selfRef">Privacy Considerations</a>
+        </h3>
+<p id="section-14.4-1">While DNSCrypt encrypts DNS traffic, there are some privacy considerations:<a href="#section-14.4-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-14.4-2">
+<li id="section-14.4-2.1">
+            <p id="section-14.4-2.1.1"><strong>Resolver Knowledge</strong>: Resolvers can still see the client's IP address unless Anonymized DNSCrypt is used<a href="#section-14.4-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.4-2.2">
+            <p id="section-14.4-2.2.1"><strong>Query Patterns</strong>: Even with encryption, the size and timing of queries may reveal information<a href="#section-14.4-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.4-2.3">
+            <p id="section-14.4-2.3.1"><strong>Certificate Requests</strong>: Initial certificate requests are unencrypted and may reveal client capabilities<a href="#section-14.4-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+</section>
+</div>
+<div id="operational-security">
+<section id="section-14.5">
+        <h3 id="name-operational-security">
+<a href="#section-14.5" class="section-number selfRef">14.5. </a><a href="#name-operational-security" class="section-name selfRef">Operational Security</a>
+        </h3>
+<p id="section-14.5-1">Operators should consider:<a href="#section-14.5-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-14.5-2">
+<li id="section-14.5-2.1">
+            <p id="section-14.5-2.1.1"><strong>Key Distribution</strong>: Provider public keys should be distributed securely to clients<a href="#section-14.5-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.5-2.2">
+            <p id="section-14.5-2.2.1"><strong>Certificate Management</strong>: Certificates should be signed on dedicated hardware, not on resolvers<a href="#section-14.5-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.5-2.3">
+            <p id="section-14.5-2.3.1"><strong>Access Control</strong>: Resolvers may implement access control based on client public keys<a href="#section-14.5-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-14.5-2.4">
+            <p id="section-14.5-2.4.1"><strong>Monitoring</strong>: Operators should monitor for unusual patterns that may indicate attacks<a href="#section-14.5-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+</section>
+</div>
 </section>
 </div>
 <div id="operational-considerations">
@@ -1768,21 +1950,21 @@ out:  51e3ff45a895675c4b33b46c64f4a9ace110d34df6a2ceab486372bacbd3eff6
       <dd>
 <span class="refAuthor">Mockapetris, P.</span>, <span class="refTitle">"Domain names - implementation and specification"</span>, <span class="seriesInfo">STD 13</span>, <span class="seriesInfo">RFC 1035</span>, <span class="seriesInfo">DOI 10.17487/RFC1035</span>, <time datetime="1987-11" class="refDate">November 1987</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc1035">https://www.rfc-editor.org/info/rfc1035</a>&gt;</span>. </dd>
 <dd class="break"></dd>
-<dt id="RFC2119">[RFC2119]</dt>
-      <dd>
-<span class="refAuthor">Bradner, S.</span>, <span class="refTitle">"Key words for use in RFCs to Indicate Requirement Levels"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 2119</span>, <span class="seriesInfo">DOI 10.17487/RFC2119</span>, <time datetime="1997-03" class="refDate">March 1997</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc2119">https://www.rfc-editor.org/info/rfc2119</a>&gt;</span>. </dd>
-<dd class="break"></dd>
-<dt id="RFC8174">[RFC8174]</dt>
-      <dd>
-<span class="refAuthor">Leiba, B.</span>, <span class="refTitle">"Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 8174</span>, <span class="seriesInfo">DOI 10.17487/RFC8174</span>, <time datetime="2017-05" class="refDate">May 2017</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8174">https://www.rfc-editor.org/info/rfc8174</a>&gt;</span>. </dd>
-<dd class="break"></dd>
 <dt id="RFC7748">[RFC7748]</dt>
       <dd>
 <span class="refAuthor">Langley, A.</span>, <span class="refAuthor">Hamburg, M.</span>, and <span class="refAuthor">S. Turner</span>, <span class="refTitle">"Elliptic Curves for Security"</span>, <span class="seriesInfo">RFC 7748</span>, <span class="seriesInfo">DOI 10.17487/RFC7748</span>, <time datetime="2016-01" class="refDate">January 2016</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc7748">https://www.rfc-editor.org/info/rfc7748</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 <dt id="RFC8439">[RFC8439]</dt>
-    <dd>
+      <dd>
 <span class="refAuthor">Nir, Y.</span> and <span class="refAuthor">A. Langley</span>, <span class="refTitle">"ChaCha20 and Poly1305 for IETF Protocols"</span>, <span class="seriesInfo">RFC 8439</span>, <span class="seriesInfo">DOI 10.17487/RFC8439</span>, <time datetime="2018-06" class="refDate">June 2018</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8439">https://www.rfc-editor.org/info/rfc8439</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC2119">[RFC2119]</dt>
+      <dd>
+<span class="refAuthor">Bradner, S.</span>, <span class="refTitle">"Key words for use in RFCs to Indicate Requirement Levels"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 2119</span>, <span class="seriesInfo">DOI 10.17487/RFC2119</span>, <time datetime="1997-03" class="refDate">March 1997</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc2119">https://www.rfc-editor.org/info/rfc2119</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8174">[RFC8174]</dt>
+    <dd>
+<span class="refAuthor">Leiba, B.</span>, <span class="refTitle">"Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 8174</span>, <span class="seriesInfo">DOI 10.17487/RFC8174</span>, <time datetime="2017-05" class="refDate">May 2017</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8174">https://www.rfc-editor.org/info/rfc8174</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 </dl>
 </section>
