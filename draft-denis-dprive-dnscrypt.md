@@ -467,5 +467,71 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 - `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
 - `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
 
+# Anonymized DNSCrypt
+
+While DNSCrypt encrypts DNS traffic, DNS server operators can still observe client IP addresses. Anonymized DNSCrypt is an extension to the DNSCrypt protocol that allows queries and responses to be relayed by an intermediate server, hiding the client's IP address from the resolver.
+
+## Protocol Overview
+
+Anonymized DNSCrypt works by having the client send encrypted queries to a relay server, which then forwards them to the actual DNSCrypt resolver. The relay server cannot decrypt the queries or responses, and the resolver only sees the relay's IP address.
+
+```
+[Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
+[Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
+```
+
+Key properties of Anonymized DNSCrypt:
+
+- The relay cannot decrypt or modify queries and responses
+- The resolver only sees the relay's IP address, not the client's
+- A DNSCrypt server can simultaneously act as a relay
+- The protocol works over both UDP and TCP
+
+## Client Queries
+
+An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed with information about the target server:
+
+```
+<anondnscrypt-query> ::= <anon-magic> <server-ip> <server-port> <dnscrypt-query>
+```
+
+Where:
+- `<anon-magic>`: `0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00`
+- `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>`)
+- `<server-port>`: 2 bytes in big-endian format
+- `<dnscrypt-query>`: standard DNSCrypt query
+
+For example, a query for a server at 192.0.2.1:443 would be prefixed with:
+```
+0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
+0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
+0x01 0xbb
+```
+
+## Relay Behavior
+
+Relays MUST:
+1. Accept queries over both TCP and UDP
+2. Communicate with upstream servers over UDP, even if client queries were sent over TCP
+3. Validate incoming packets:
+   - Check that the target IP is not in a private range
+   - Verify the port number is in an allowed range
+   - Ensure the DNSCrypt query doesn't start with `<anon-magic>`
+   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC)
+4. Forward valid queries unmodified to the server
+5. Verify server responses:
+   - Check that the response is smaller than the query
+   - Validate the response format (either starts with resolver magic or is a certificate response)
+   - Forward valid responses unmodified to the client
+
+## Operational Considerations
+
+When using Anonymized DNSCrypt:
+1. Clients should choose relays and servers operated by different entities
+2. Having relays and servers on different networks is recommended
+3. Relay operators should:
+   - Refuse forwarding to reserved IP ranges
+   - Restrict allowed server ports (typically only allowing port 443)
+   - Monitor for abuse
 
 --- back
