@@ -1665,7 +1665,7 @@ variable number of NUL bytes.<a href="#section-5.4.3-1" class="pilcrow">¶</a></
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                         Cert Magic                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    ES Version    | Protocol Minor Version    |   Reserved    |
+|    ES Version    |  Protocol Minor Version    |   Reserved    |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
 +                         Signature                             +
@@ -2021,6 +2021,7 @@ same key.<a href="#section-5.5-15" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-9.1-2">
 <pre>
 [Client]----(encrypted query)---&gt;[Relay]----(encrypted query)---&gt;[Server]
+
 [Client]&lt;--(encrypted response)--[Relay]&lt;--(encrypted response)--[Server]
 </pre><a href="#section-9.1-2" class="pilcrow">¶</a>
 </div>
@@ -2091,8 +2092,8 @@ same key.<a href="#section-5.5-15" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-9.2-8">
 <pre>
 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
-0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
-0x01 0xbb
+0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0xff 0xff 0xc0 0x00 0x02 0x01 0x01 0xbb
 </pre><a href="#section-9.2-8" class="pilcrow">¶</a>
 </div>
 </section>

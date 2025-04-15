@@ -534,7 +534,7 @@ Table of Contents
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                         Cert Magic                            |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |    ES Version    | Protocol Minor Version    |   Reserved    |
+   |    ES Version    |  Protocol Minor Version    |   Reserved    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                                                               |
    +                         Signature                             +
@@ -896,6 +896,7 @@ Table of Contents
    and the resolver only sees the relay's IP address.
 
 [Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
+
 [Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
 
    Key properties of Anonymized DNSCrypt:
@@ -948,9 +949,9 @@ Table of Contents
    For example, a query for a server at 192.0.2.1:443 would be prefixed
    with:
 
-0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
-0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
-0x01 0xbb
+   0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
+   0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+   0xff 0xff 0xc0 0x00 0x02 0x01 0x01 0xbb
 
 9.3.  Relay Behavior
 
