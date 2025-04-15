@@ -1,19 +1,15 @@
 ---
-title: "The DNSCrypt protocol"
+title: "The DNSCrypt Protocol"
 abbrev: "DNSCrypt"
-category: info
-
-ipr: trust200902
 docname: draft-denis-dprive-dnscrypt-latest
+category: info
+ipr: trust200902
 submissiontype: independent
-keyword:
- - dns
- - encryption
- - privacy
+keyword: Internet-Draft
 venue:
-  group: "DNS PRIVate Exchange"
   type: "Working Group"
   github: "DNSCrypt/dnscrypt-protocol"
+  latest: "https://dnscrypt.github.io/dnscrypt-protocol/"
 
 author:
  -
@@ -25,18 +21,29 @@ normative:
 
 informative:
 
-
 --- abstract
 
-The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation.
+The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic between clients and resolvers. This document specifies the protocol and its implementation, providing a standardized approach to securing DNS communications. DNSCrypt improves confidentiality, integrity, and resistance to attacks affecting the original DNS protocol while maintaining compatibility with existing DNS infrastructure.
 
 --- middle
 
 # Introduction
 
-The document defines the DNSCrypt protocol, which encrypts and authenticates DNS {{!RFC1035}} queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.
+The Domain Name System (DNS) {{!RFC1035}} is a critical component of Internet infrastructure, but its original design did not include security features to protect the confidentiality and integrity of queries and responses. This document defines the DNSCrypt protocol, which encrypts and authenticates DNS queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.
 
-The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy.
+The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy. It provides a standardized approach to securing DNS communications while maintaining compatibility with existing DNS infrastructure.
+
+Key features of the DNSCrypt protocol include:
+
+- Stateless operation: Every query can be processed independently from other queries, with no session identifiers required.
+- Flexible key management: Clients can replace their keys whenever they want, without extra interactions with servers.
+- Proxy support: DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
+- Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.
+- Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.
+
+The protocol uses modern cryptographic primitives including X25519 {{!RFC7748}} for key exchange and XChaCha20-Poly1305 {{!RFC8439}} for authenticated encryption, providing strong security guarantees while maintaining high performance.
+
+This document specifies version 2 of the DNSCrypt protocol, which represents the current recommended version for implementation.
 
 DNS packets do not need to be parsed or rewritten. DNSCrypt simply wraps them in a secure, encrypted container. Encrypted packets are then exchanged the same way as regular packets, using the standard DNS transport mechanisms. Queries and responses are sent over UDP, falling back to TCP for large responses only if necessary.
 
@@ -274,15 +281,69 @@ or
 
 # Implementation Status
 
-*This note is to be removed before publishing as an RFC.*
+*Note: This section is to be removed before publishing as an RFC.*
 
-Multiple implementations of the protocol described in this document have been developed and verified for interoperability.
-
-A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
+Multiple implementations of the protocol described in this document have been developed and verified for interoperability. A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
 
 # Security Considerations
 
-DNSCrypt does not protect against attacks on DNS infrastructure.
+## Protocol Security
+
+The DNSCrypt protocol provides several security benefits:
+
+1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305, preventing eavesdropping of DNS traffic.
+2. **Integrity**: Message authentication using Poly1305 ensures that responses cannot be tampered with in transit.
+3. **Authentication**: The use of X25519 for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers.
+4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy.
+
+## Implementation Security
+
+Implementations should consider the following security aspects:
+
+1. **Key Management**:
+   - Resolvers MUST rotate their short-term key pairs at least every 24 hours
+   - Previous secret keys MUST be securely erased after rotation
+   - Provider secret keys used for certificate signing SHOULD be stored in hardware security modules (HSMs)
+
+2. **Nonce Management**:
+   - Nonces MUST NOT be reused for a given shared secret
+   - Clients SHOULD include timestamps in their nonces to prevent replay attacks
+   - Resolvers SHOULD verify that nonces are within a reasonable time window
+
+3. **Padding**:
+   - Implementations MUST use the specified padding scheme to prevent traffic analysis
+   - The minimum query length SHOULD be adjusted based on network conditions
+
+4. **Certificate Validation**:
+   - Clients MUST verify certificate signatures using the provider's public key
+   - Certificates MUST be checked for validity periods
+   - Clients MUST prefer certificates with higher serial numbers
+
+## Attack Mitigation
+
+DNSCrypt provides protection against several types of attacks:
+
+1. **DNS Spoofing**: The use of authenticated encryption prevents spoofed responses
+2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks
+3. **Fragmentation Attacks**: The protocol handles fragmentation in a way that prevents certain types of attacks
+4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks
+
+## Privacy Considerations
+
+While DNSCrypt encrypts DNS traffic, there are some privacy considerations:
+
+1. **Resolver Knowledge**: Resolvers can still see the client's IP address unless Anonymized DNSCrypt is used
+2. **Query Patterns**: Even with encryption, the size and timing of queries may reveal information
+3. **Certificate Requests**: Initial certificate requests are unencrypted and may reveal client capabilities
+
+## Operational Security
+
+Operators should consider:
+
+1. **Key Distribution**: Provider public keys should be distributed securely to clients
+2. **Certificate Management**: Certificates should be signed on dedicated hardware, not on resolvers
+3. **Access Control**: Resolvers may implement access control based on client public keys
+4. **Monitoring**: Operators should monitor for unusual patterns that may indicate attacks
 
 # Operational Considerations
 
