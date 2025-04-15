@@ -37,7 +37,74 @@ The protocol is designed to be lightweight, extensible, and simple to implement 
 
 {::boilerplate bcp14-tagged}
 
-## Protocol Components
+# Protocol Flow
+
+The DNSCrypt protocol consists of two distinct phases:
+
+1. **Initial Setup Phase** (one-time):
+   - The client requests the server's certificate
+   - The server responds with its certificate containing public keys
+
+2. **Ongoing Communication Phase** (repeated as needed):
+   - The client sends encrypted DNS queries
+   - The server responds with encrypted DNS responses
+
+The following diagram illustrates the complete protocol flow:
+
+~~~
++--------+                    +--------+
+|        |                    |        |
+| Client |                    | Server |
+|        |                    |        |
++--------+                    +--------+
+    |                             |
+    | 1. Request Certificate      |
+    |---------------------------->|
+    |                             |
+    | 2. Certificate Response     |
+    |<----------------------------|
+    |                             |
+    | 3. Encrypted Query          |
+    |---------------------------->|
+    |                             |
+    | 4. Encrypted Query          |
+    |---------------------------->|
+    |                             |
+    | 5. Encrypted Response       |
+    |<----------------------------|
+    |                             |
+    | 6. Encrypted Response       |
+    |<----------------------------|
+    |                             |
+    | 7. Encrypted Query          |
+    |---------------------------->|
+    |                             |
+    | 8. Encrypted Response       |
+    |<----------------------------|
+    |                             |
+    |                             |
+~~~
+
+The initial setup phase (steps 1-2) occurs only when:
+
+- A client first starts using a DNSCrypt server
+- The client's cached certificate expires
+- The client detects a certificate with a higher serial number
+
+After the initial setup, the client and server engage in the ongoing communication phase (steps 3-8), where encrypted queries and responses are exchanged as needed. This phase can be repeated indefinitely until the certificate expires or a new certificate is available.
+
+Key characteristics of the ongoing communication phase:
+
+1. **Stateless Operation**: Each query and response is independent. The server does not maintain state between queries.
+
+2. **Out-of-Order Responses**: Responses may arrive in a different order than the queries were sent. Each response is self-contained and can be processed independently.
+
+3. **Multiple Responses**: A single query may result in multiple responses, and responses can be received without sending new queries. For example, a server might send additional responses for a query that has multiple answers or requires additional processing.
+
+4. **Asynchronous Communication**: The protocol does not require strict request-response pairing. A client can send multiple queries before receiving responses, and responses can be processed as they arrive.
+
+# Protocol Components
+
 
 Definitions for client queries:
 
@@ -68,6 +135,46 @@ Definitions for server responses:
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered and the response length MUST be kept in responses prepared to be sent over TCP {{!RFC7766}}.
 - `<resolver-response-pad>`: the variable-length padding.
+
+The following diagram shows the structure of a DNSCrypt query packet:
+
+~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                         Client Magic                          |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                      Client Public Key                        +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                        Client Nonce                           +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                       Encrypted Query                         +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~
+
+The following diagram shows the structure of a DNSCrypt response packet:
+
+~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                        Resolver Magic                         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                          Nonce                                +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                      Encrypted Response                       +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~
 
 # Protocol Description
 
@@ -182,6 +289,38 @@ After having received a response from the resolver, the client and the resolver 
 
 ## Certificates
 
+The following diagram shows the structure of a DNSCrypt certificate:
+
+~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                         Cert Magic                            |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|    ES Version    | Protocol Minor Version    |   Reserved    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                         Signature                             +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                      Resolver Public Key                      +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                        Client Magic                           |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          Serial                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          TS Start                             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          TS End                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                        Extensions                             +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~
+
 To initiate a DNSCrypt session, a client transmits an ordinary unencrypted `TXT` DNS query to the resolver's IP address and DNSCrypt port. The attempt is first made using UDP; if unsuccessful due to failure, timeout, or truncation, the client then proceeds with TCP.
 
 Resolvers are not required to serve certificates both on UDP and TCP.
@@ -257,10 +396,13 @@ This section discusses security considerations for the DNSCrypt protocol.
 
 The DNSCrypt protocol provides several security benefits:
 
-1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305 {{!RFC8439}}, preventing eavesdropping of DNS traffic.
-2. **Integrity**: Message authentication using Poly1305 {{!RFC8439}} ensures that responses cannot be tampered with in transit.
-3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers.
-4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy.
+1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305 {{!RFC8439}}, preventing eavesdropping of DNS traffic. For example, a query for "example.com" would be encrypted and appear as random data to an observer.
+
+2. **Integrity**: Message authentication using Poly1305 {{!RFC8439}} ensures that responses cannot be tampered with in transit. Any modification to the encrypted response would be detected and rejected by the client.
+
+3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers. Clients can verify they are communicating with the intended resolver and not an impostor.
+
+4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy. Even if a long-term key is compromised, past communications remain secure.
 
 ## Implementation Security
 
@@ -270,46 +412,70 @@ Implementations should consider the following security aspects:
    - Resolvers MUST rotate their short-term key pairs at least every 24 hours
    - Previous secret keys MUST be securely erased after rotation
    - Provider secret keys used for certificate signing SHOULD be stored in hardware security modules (HSMs)
+   - Example: A resolver might generate new key pairs daily at midnight UTC
 
 2. **Nonce Management**:
    - Nonces MUST NOT be reused for a given shared secret
    - Clients SHOULD include timestamps in their nonces to prevent replay attacks
-   - Resolvers SHOULD verify that nonces are within a reasonable time window
+   - Resolvers SHOULD verify that nonces are within a reasonable time window (e.g., ±5 minutes)
+   - Example: A nonce might be constructed as: `timestamp || random_bytes`
 
 3. **Padding**:
    - Implementations MUST use the specified padding scheme to prevent traffic analysis
    - The minimum query length SHOULD be adjusted based on network conditions
+   - Example: A 50-byte query might be padded to 256 bytes to prevent size-based fingerprinting
 
 4. **Certificate Validation**:
    - Clients MUST verify certificate signatures using the provider's public key
    - Certificates MUST be checked for validity periods
    - Clients MUST prefer certificates with higher serial numbers
+   - Example: A client might cache valid certificates and check for updates hourly
 
 ## Attack Mitigation
 
 DNSCrypt provides protection against several types of attacks:
 
-1. **DNS Spoofing**: The use of authenticated encryption prevents spoofed responses
-2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks {{!RFC5358}}
-3. **Fragmentation Attacks**: The protocol handles fragmentation in a way that prevents certain types of attacks
-4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks
+1. **DNS Spoofing**: The use of authenticated encryption prevents spoofed responses. An attacker cannot forge responses without the server's secret key.
+
+2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks {{!RFC5358}}. For example, a 256-byte minimum query size limits the amplification factor.
+
+3. **Fragmentation Attacks**: The protocol handles fragmentation in a way that prevents certain types of attacks. Large responses are properly fragmented and reassembled.
+
+4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks. A replayed query would be detected due to nonce reuse.
 
 ## Privacy Considerations
 
 While DNSCrypt encrypts DNS traffic, there are some privacy considerations:
 
-1. **Resolver Knowledge**: Resolvers can still see the client's IP address unless Anonymized DNSCrypt is used
-2. **Query Patterns**: Even with encryption, the size and timing of queries may reveal information
-3. **Certificate Requests**: Initial certificate requests are unencrypted and may reveal client capabilities
+1. **Resolver Knowledge**: Resolvers can still see the client's IP address unless Anonymized DNSCrypt is used. This can reveal the client's location and network.
+
+2. **Query Patterns**: Even with encryption, the size and timing of queries may reveal information. Padding helps mitigate this but doesn't eliminate it completely.
+
+3. **Certificate Requests**: Initial certificate requests are unencrypted and may reveal client capabilities. This is a one-time exposure per session.
 
 ## Operational Security
 
 Operators should consider:
 
-1. **Key Distribution**: Provider public keys should be distributed securely to clients
-2. **Certificate Management**: Certificates should be signed on dedicated hardware, not on resolvers
-3. **Access Control**: Resolvers may implement access control based on client public keys
-4. **Monitoring**: Operators should monitor for unusual patterns that may indicate attacks
+1. **Key Distribution**: Provider public keys should be distributed securely to clients. This might involve:
+   - Publishing keys on secure websites
+   - Using DNSSEC-signed records
+   - Including keys in software distributions
+
+2. **Certificate Management**: Certificates should be signed on dedicated hardware, not on resolvers. This provides:
+   - Better key protection
+   - Centralized certificate management
+   - Reduced attack surface
+
+3. **Access Control**: Resolvers may implement access control based on client public keys. This can:
+   - Prevent abuse
+   - Enable service differentiation
+   - Support business models
+
+4. **Monitoring**: Operators should monitor for unusual patterns that may indicate attacks:
+   - High query rates from single clients
+   - Unusual query patterns
+   - Certificate request anomalies
 
 # Operational Considerations
 
@@ -348,6 +514,26 @@ Key properties of Anonymized DNSCrypt:
 - The protocol works over both UDP and TCP
 
 ## Client Queries
+
+The following diagram shows the structure of an Anonymized DNSCrypt query packet:
+
+~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                         Anon Magic                            |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                        Server IP (IPv6)                       +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|        Server Port        |                                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+                                   +
+|                                                               |
++                     DNSCrypt Query                            +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~
 
 An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed with information about the target server:
 
