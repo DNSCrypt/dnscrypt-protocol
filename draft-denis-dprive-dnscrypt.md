@@ -50,7 +50,7 @@ Definitions for client queries:
 - `AE`: the authenticated encryption function.
 - `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered and the query length MUST be kept in queries prepared to be sent over TCP.
+- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered and the query length MUST be kept in queries prepared to be sent over TCP {{!RFC7766}}.
 - `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
@@ -66,7 +66,7 @@ Definitions for server responses:
 - `DE`: the authenticated decryption function.
 - `<encrypted-response>`: `DE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered and the response length MUST be kept in responses prepared to be sent over TCP.
+- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered and the response length MUST be kept in responses prepared to be sent over TCP {{!RFC7766}}.
 - `<resolver-response-pad>`: the variable-length padding.
 
 # Protocol Description
@@ -77,10 +77,10 @@ The DNSCrypt protocol operates through the following steps:
 
 1. The DNSCrypt client sends a DNS query to a DNSCrypt server to retrieve the server's public keys.
 2. The client generates its own key pair.
-3. The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is transmitted to the server via standard DNS transport mechanisms.
+3. The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is transmitted to the server via standard DNS transport mechanisms {{!RFC1035}}.
 4. Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.
 5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
-6. The client authenticates and decrypts the response using its secret key, the server's public key, the client's nonce included in the response, and the client's original nonce. If the response was truncated, the client MAY adjust internal parameters and retry over TCP. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
+6. The client authenticates and decrypts the response using its secret key, the server's public key, the client's nonce included in the response, and the client's original nonce. If the response was truncated, the client MAY adjust internal parameters and retry over TCP {{!RFC7766}}. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
 Key features of the DNSCrypt protocol include:
 
@@ -88,7 +88,7 @@ Key features of the DNSCrypt protocol include:
 - Flexible key management: Clients can replace their keys whenever they want, without extra interactions with servers.
 - Proxy support: DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
 - Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.
-- Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.
+- Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification {{!RFC5358}} and fragmentation attacks.
 
 ## Transport
 
@@ -138,7 +138,7 @@ The client MUST authenticate and, if authentication succeeds, decrypt the respon
 
 If the response has the TC flag set, the client MUST:
 
-1. send the query again using TCP
+1. send the query again using TCP {{!RFC7766}}
 2. set the new minimum query length as:
 
 `<min-query-len> ::= min(<min-query-len> + 64, <max-query-len>)`
@@ -186,7 +186,7 @@ To initiate a DNSCrypt session, a client transmits an ordinary unencrypted `TXT`
 
 Resolvers are not required to serve certificates both on UDP and TCP.
 
-The name in the question (`<provider name`) MUST follow this scheme:
+The name in the question (`<provider name>`) MUST follow this scheme:
 
 `<protocol-major-version> . dnscrypt-cert . <zone>`
 
@@ -223,7 +223,7 @@ A successful response to a certificate request contains one or more `TXT` record
 - `<protocol-minor-version>`: `0x00 0x00`
 - `<signature>`: a 64-byte signature of `(<resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>)` using the Ed25519 algorithm and the provider secret key. Ed25519 MUST be used in this version of the protocol.
 - `<resolver-pk>`: the resolver short-term public key, which is 32 bytes when using X25519.
-- `<client-magic>`: The first 8 bytes of a client query that was built using the information from this certificate. It MAY be a truncated public key. Two valid certificates cannot share the same `<client-magic>`. `<client-magic>` MUST NOT start with `0x00 0x00 0x00 0x00 0x00 0x00 0x00` (seven all-zero bytes) in order to avoid confusion with the QUIC protocol.
+- `<client-magic>`: The first 8 bytes of a client query that was built using the information from this certificate. It MAY be a truncated public key. Two valid certificates cannot share the same `<client-magic>`. `<client-magic>` MUST NOT start with `0x00 0x00 0x00 0x00 0x00 0x00 0x00` (seven all-zero bytes) in order to avoid confusion with the QUIC protocol {{!RFC9000}}.
 - `<serial>`: a 4-byte serial number in big-endian format. If more than one certificate is valid, the client MUST prefer the certificate with a higher serial number.
 - `<ts-start>`: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp.
 - `<ts-end>`: the date the certificate is valid until (inclusive), as a big-endian 4-byte unsigned Unix timestamp.
@@ -257,9 +257,9 @@ This section discusses security considerations for the DNSCrypt protocol.
 
 The DNSCrypt protocol provides several security benefits:
 
-1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305, preventing eavesdropping of DNS traffic.
-2. **Integrity**: Message authentication using Poly1305 ensures that responses cannot be tampered with in transit.
-3. **Authentication**: The use of X25519 for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers.
+1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305 {{!RFC8439}}, preventing eavesdropping of DNS traffic.
+2. **Integrity**: Message authentication using Poly1305 {{!RFC8439}} ensures that responses cannot be tampered with in transit.
+3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers.
 4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy.
 
 ## Implementation Security
@@ -290,7 +290,7 @@ Implementations should consider the following security aspects:
 DNSCrypt provides protection against several types of attacks:
 
 1. **DNS Spoofing**: The use of authenticated encryption prevents spoofed responses
-2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks
+2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks {{!RFC5358}}
 3. **Fragmentation Attacks**: The protocol handles fragmentation in a way that prevents certain types of attacks
 4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks
 
@@ -323,13 +323,9 @@ Resolvers accepting queries from any client MUST accept any client public key. I
 
 Resolvers MUST rotate the short-term key pair every 24 hours at most, and MUST throw away the previous secret key. After a key rotation, a resolver MUST still accept all the previous keys that haven't expired.
 
-Provider public keys MAY be published as DNSSEC-signed `TXT` records, in the same zone as the provider name. For example, a query for the `TXT` type on the name `"2.pubkey.example.com"` may return a signed record containing a hexadecimal-encoded provider public key for the provider name `"2.dnscrypt-cert.example.com"`.
+Provider public keys MAY be published as DNSSEC-signed `TXT` records {{!RFC1035}}, in the same zone as the provider name. For example, a query for the `TXT` type on the name `"2.pubkey.example.com"` may return a signed record containing a hexadecimal-encoded provider public key for the provider name `"2.dnscrypt-cert.example.com"`.
 
 As a client is likely to reuse the same key pair many times, servers are encouraged to cache shared keys instead of performing the X25519 operation for each query. This makes the computational overhead of DNSCrypt negligible compared to plain DNS.
-
-# IANA Considerations
-
-This document has no IANA actions.
 
 # Anonymized DNSCrypt
 
@@ -360,12 +356,14 @@ An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed with informat
 ~~~
 
 Where:
+
 - `<anon-magic>`: `0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00`
-- `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>`)
+- `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>` {{!RFC4291}})
 - `<server-port>`: 2 bytes in big-endian format
 - `<dnscrypt-query>`: standard DNSCrypt query
 
 For example, a query for a server at 192.0.2.1:443 would be prefixed with:
+
 ~~~
 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
@@ -375,15 +373,18 @@ For example, a query for a server at 192.0.2.1:443 would be prefixed with:
 ## Relay Behavior
 
 Relays MUST:
+
 1. Accept queries over both TCP and UDP
 2. Communicate with upstream servers over UDP, even if client queries were sent over TCP
 3. Validate incoming packets:
-   - Check that the target IP is not in a private range
+
+   - Check that the target IP is not in a private range {{!RFC1918}}
    - Verify the port number is in an allowed range
    - Ensure the DNSCrypt query doesn't start with `<anon-magic>`
-   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC)
+   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC {{!RFC9000}})
 4. Forward valid queries unmodified to the server
 5. Verify server responses:
+
    - Check that the response is smaller than the query
    - Validate the response format (either starts with resolver magic or is a certificate response)
    - Forward valid responses unmodified to the client
@@ -391,12 +392,17 @@ Relays MUST:
 ## Operational Considerations
 
 When using Anonymized DNSCrypt:
+
 1. Clients should choose relays and servers operated by different entities
 2. Having relays and servers on different networks is recommended
 3. Relay operators should:
-   - Refuse forwarding to reserved IP ranges
+   - Refuse forwarding to reserved IP ranges {{!RFC1918}}
    - Restrict allowed server ports (typically only allowing port 443)
    - Monitor for abuse
+
+# IANA Considerations
+
+This document has no IANA actions.
 
 # Appendix 1: The Box-XChaChaPoly Algorithm
 
