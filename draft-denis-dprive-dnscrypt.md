@@ -297,7 +297,7 @@ The following diagram shows the structure of a DNSCrypt certificate:
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                         Cert Magic                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    ES Version    | Protocol Minor Version    |   Reserved    |
+|    ES Version    |  Protocol Minor Version    |   Reserved    |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
 +                         Signature                             +
@@ -503,6 +503,7 @@ Anonymized DNSCrypt works by having the client send encrypted queries to a relay
 
 ~~~
 [Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
+
 [Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
 ~~~
 
@@ -552,8 +553,8 @@ For example, a query for a server at 192.0.2.1:443 would be prefixed with:
 
 ~~~
 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
-0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
-0x01 0xbb
+0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+0xff 0xff 0xc0 0x00 0x02 0x01 0x01 0xbb
 ~~~
 
 ## Relay Behavior
