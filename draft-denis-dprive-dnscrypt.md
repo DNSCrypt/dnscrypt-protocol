@@ -33,37 +33,16 @@ The Domain Name System (DNS) {{!RFC1035}} is a critical component of Internet in
 
 The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy. It provides a standardized approach to securing DNS communications while maintaining compatibility with existing DNS infrastructure.
 
-Key features of the DNSCrypt protocol include:
-
-- Stateless operation: Every query can be processed independently from other queries, with no session identifiers required.
-- Flexible key management: Clients can replace their keys whenever they want, without extra interactions with servers.
-- Proxy support: DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
-- Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.
-- Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.
-
-The protocol uses modern cryptographic primitives including X25519 {{!RFC7748}} for key exchange and XChaCha20-Poly1305 {{!RFC8439}} for authenticated encryption, providing strong security guarantees while maintaining high performance.
-
-This document specifies version 2 of the DNSCrypt protocol, which represents the current recommended version for implementation.
-
-DNS packets do not need to be parsed or rewritten. DNSCrypt simply wraps them in a secure, encrypted container. Encrypted packets are then exchanged the same way as regular packets, using the standard DNS transport mechanisms. Queries and responses are sent over UDP, falling back to TCP for large responses only if necessary.
-
-DNSCrypt is stateless. Every query can be processed independently from other queries. There are no session identifiers. In order to better defend against fingerprinting, clients can replace their keys whenever they want, without extra interactions with servers.
-
-DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
-
-Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic. Similarly, DNSCrypt and DoH can also share the same IP address and TCP port.
-
-Lastly, DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.
-
 # Conventions And Definitions
 
 {::boilerplate bcp14-tagged}
 
+## Protocol Components
+
 Definitions for client queries:
 
 - `<dnscrypt-query>`:  `<client-magic>` `<client-pk>` `<client-nonce>` `<encrypted-query>`
-- `<client-magic>`: a 8 byte identifier for the resolver certificate
-chosen by the client.
+- `<client-magic>`: a 8 byte identifier for the resolver certificate chosen by the client.
 - `<client-pk>`: the client's public key, whose length depends on the encryption algorithm defined in the chosen certificate.
 - `<client-sk>`: the client's secret key.
 - `<resolver-pk>`: the resolver's public key.
@@ -71,7 +50,7 @@ chosen by the client.
 - `AE`: the authenticated encryption function.
 - `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
--`<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered and the query length MUST be kept in queries prepared to be sent over TCP.
+- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered and the query length MUST be kept in queries prepared to be sent over TCP.
 - `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
@@ -90,8 +69,9 @@ Definitions for server responses:
 - `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered and the response length MUST be kept in responses prepared to be sent over TCP.
 - `<resolver-response-pad>`: the variable-length padding.
 
+# Protocol Description
 
-# Protocol Overview
+## Overview
 
 The DNSCrypt protocol operates through the following steps:
 
@@ -102,14 +82,22 @@ The DNSCrypt protocol operates through the following steps:
 5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
 6. The client authenticates and decrypts the response using its secret key, the server's public key, the client's nonce included in the response, and the client's original nonce. If the response was truncated, the client MAY adjust internal parameters and retry over TCP. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
-# Key Management
+Key features of the DNSCrypt protocol include:
 
-Both clients and resolvers generate short-term key pairs for each encryption system they support.
+- Stateless operation: Every query can be processed independently from other queries, with no session identifiers required.
+- Flexible key management: Clients can replace their keys whenever they want, without extra interactions with servers.
+- Proxy support: DNSCrypt packets can securely be proxied without having to be decrypted, allowing client IP addresses to be hidden from resolvers ("Anonymized DNSCrypt").
+- Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.
+- Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification and fragmentation attacks.
 
-Clients generate unique key pairs for each resolver they communicate with, while resolvers create individual key pairs for every client they interact with. Additionally, the resolver creates a public key for each encryption system it supports.
+## Transport
 
+The DNSCrypt protocol can use the UDP and TCP transport protocols.
+DNSCrypt clients and resolvers SHOULD support the protocol via UDP, and MUST support it over TCP.
 
-# Session Establishment
+Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by default.
+
+## Session Establishment
 
 From the client's perspective, a DNSCrypt session is initiated when the client sends an unauthenticated DNS query to a DNSCrypt-capable resolver. This DNS query contains encoded information about the certificate versions supported by the client and a public identifier of the desired provider.
 
@@ -123,14 +111,9 @@ The encryption algorithm, resolver public key, and client magic number from the 
 
 With the knowledge of the chosen certificate and corresponding secret key, along with the client's public key, the resolver is able to verify, decrypt the query, and then encrypt the response utilizing identical parameters.
 
-# Transport
+## Query Processing
 
-The DNSCrypt protocol can use the UDP and TCP transport protocols.
-DNSCrypt clients and resolvers SHOULD support the protocol via UDP, and MUST support it over TCP.
-
-Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by default.
-
-# Padding For Client Queries Over UDP
+### Padding For Client Queries Over UDP
 
 Before encryption takes place, queries are padded according to the ISO/IEC 7816-4 standard. Padding begins with a single byte holding the value `0x80`, succeeded by any number of `NUL` bytes.
 
@@ -141,7 +124,7 @@ Should the client query's length fall short of  `<min-query-len>` bytes, the pad
 
 `<min-query-len>` is a variable length, initially set to 256 bytes, and MUST be a multiple of 64 bytes. It represents the minimum permitted length for a client query, inclusive of padding.
 
-# Client Queries Over UDP
+### Client Queries Over UDP
 
 UDP-based client queries need to follow the padding guidelines outlined in section 3.
 
@@ -164,7 +147,7 @@ If the response has the TC flag set, the client MUST:
 
 The client MAY decrease `<min-query-len>`, but the length MUST remain a multiple of 64 bytes.
 
-# Padding For Client Queries Over TCP
+### Padding For Client Queries Over TCP
 
 Queries MUST undergo padding using the ISO/IEC 7816-4 format before being encrypted. The padding starts with a byte valued `0x80` followed by a
 variable number of NUL bytes.
@@ -187,8 +170,7 @@ or
 
 `<56-bytes-query> 0x80 (0x00 * 199)`
 
-
-# Client Queries Over TCP
+### Client Queries Over TCP
 
 The sole differences between encrypted client queries transmitted via TCP and those sent using UDP lie in the padding length calculation and the inclusion of a length prefix, represented as two big-endian bytes.
 
@@ -198,25 +180,7 @@ Unlike UDP queries, a query sent over TCP can be shorter than the response.
 
 After having received a response from the resolver, the client and the resolver MUST close the TCP connection to ensure security and comply with this revision of the protocol, which prohibits multiple transactions over the same TCP connection.
 
-# Authenticated Encryption And Key Exchange Algorithm
-
-The `Box-XChaChaPoly` construction, and the way to use it described in this section, MUST be referenced in certificates as version `2` of the public-key authenticated encryption system.
-
-The construction, originally implemented in the libsodium cryptographic library and exposed under the name "crypto_box_curve25519xchacha20poly1305", uses the Curve25119 elliptic curve in Montgomery form and the `hchacha20` hash function for key exchange, the `XChaCha20` stream cipher, and `Poly1305` for message authentication.
-
-The public and secret keys are 32 bytes long in storage. The MAC is 16 bytes long, and is prepended to the ciphertext.
-
-When using `Box-XChaChaPoly`, this construction necessitates the use of a 24 bytes nonce, that MUST NOT be reused for a given shared secret.
-
-With a 24 bytes nonce, a question sent by a DNSCrypt client must be encrypted using the shared secret, and a nonce constructed as follows: 12 bytes chosen by the client followed by 12 NUL (`0x00`) bytes.
-
-A response to this question MUST be encrypted using the shared secret, and a nonce constructed as follows: the bytes originally chosen by the client, followed by bytes chosen by the resolver.
-
-Randomly selecting the resolver's portion of the nonce is RECOMMENDED.
-
-The client's half of the nonce MAY include a timestamp in addition to a counter or to random bytes. Incorporating a timestamp allows for prompt elimination of responses to queries that were sent too long ago or are dated in the future. This practice enhances security and prevents potential replay attacks.
-
-# Certificates
+## Certificates
 
 To initiate a DNSCrypt session, a client transmits an ordinary unencrypted `TXT` DNS query to the resolver's IP address and DNSCrypt port. The attempt is first made using UDP; if unsuccessful due to failure, timeout, or truncation, the client then proceeds with TCP.
 
@@ -286,6 +250,8 @@ or
 Multiple implementations of the protocol described in this document have been developed and verified for interoperability. A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
 
 # Security Considerations
+
+This section discusses security considerations for the DNSCrypt protocol.
 
 ## Protocol Security
 
@@ -364,6 +330,73 @@ As a client is likely to reuse the same key pair many times, servers are encoura
 # IANA Considerations
 
 This document has no IANA actions.
+
+# Anonymized DNSCrypt
+
+While DNSCrypt encrypts DNS traffic, DNS server operators can still observe client IP addresses. Anonymized DNSCrypt is an extension to the DNSCrypt protocol that allows queries and responses to be relayed by an intermediate server, hiding the client's IP address from the resolver.
+
+## Protocol Overview
+
+Anonymized DNSCrypt works by having the client send encrypted queries to a relay server, which then forwards them to the actual DNSCrypt resolver. The relay server cannot decrypt the queries or responses, and the resolver only sees the relay's IP address.
+
+~~~
+[Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
+[Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
+~~~
+
+Key properties of Anonymized DNSCrypt:
+
+- The relay cannot decrypt or modify queries and responses
+- The resolver only sees the relay's IP address, not the client's
+- A DNSCrypt server can simultaneously act as a relay
+- The protocol works over both UDP and TCP
+
+## Client Queries
+
+An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed with information about the target server:
+
+~~~
+<anondnscrypt-query> ::= <anon-magic> <server-ip> <server-port> <dnscrypt-query>
+~~~
+
+Where:
+- `<anon-magic>`: `0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00`
+- `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>`)
+- `<server-port>`: 2 bytes in big-endian format
+- `<dnscrypt-query>`: standard DNSCrypt query
+
+For example, a query for a server at 192.0.2.1:443 would be prefixed with:
+~~~
+0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
+0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
+0x01 0xbb
+~~~
+
+## Relay Behavior
+
+Relays MUST:
+1. Accept queries over both TCP and UDP
+2. Communicate with upstream servers over UDP, even if client queries were sent over TCP
+3. Validate incoming packets:
+   - Check that the target IP is not in a private range
+   - Verify the port number is in an allowed range
+   - Ensure the DNSCrypt query doesn't start with `<anon-magic>`
+   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC)
+4. Forward valid queries unmodified to the server
+5. Verify server responses:
+   - Check that the response is smaller than the query
+   - Validate the response format (either starts with resolver magic or is a certificate response)
+   - Forward valid responses unmodified to the client
+
+## Operational Considerations
+
+When using Anonymized DNSCrypt:
+1. Clients should choose relays and servers operated by different entities
+2. Having relays and servers on different networks is recommended
+3. Relay operators should:
+   - Refuse forwarding to reserved IP ranges
+   - Restrict allowed server ports (typically only allowing port 443)
+   - Monitor for abuse
 
 # Appendix 1: The Box-XChaChaPoly Algorithm
 
@@ -466,72 +499,3 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 - `<sk>`: sender's secret key
 - `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
 - `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
-
-# Anonymized DNSCrypt
-
-While DNSCrypt encrypts DNS traffic, DNS server operators can still observe client IP addresses. Anonymized DNSCrypt is an extension to the DNSCrypt protocol that allows queries and responses to be relayed by an intermediate server, hiding the client's IP address from the resolver.
-
-## Protocol Overview
-
-Anonymized DNSCrypt works by having the client send encrypted queries to a relay server, which then forwards them to the actual DNSCrypt resolver. The relay server cannot decrypt the queries or responses, and the resolver only sees the relay's IP address.
-
-```
-[Client]----(encrypted query)--->[Relay]----(encrypted query)--->[Server]
-[Client]<--(encrypted response)--[Relay]<--(encrypted response)--[Server]
-```
-
-Key properties of Anonymized DNSCrypt:
-
-- The relay cannot decrypt or modify queries and responses
-- The resolver only sees the relay's IP address, not the client's
-- A DNSCrypt server can simultaneously act as a relay
-- The protocol works over both UDP and TCP
-
-## Client Queries
-
-An Anonymized DNSCrypt query is a standard DNSCrypt query prefixed with information about the target server:
-
-```
-<anondnscrypt-query> ::= <anon-magic> <server-ip> <server-port> <dnscrypt-query>
-```
-
-Where:
-- `<anon-magic>`: `0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00`
-- `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>`)
-- `<server-port>`: 2 bytes in big-endian format
-- `<dnscrypt-query>`: standard DNSCrypt query
-
-For example, a query for a server at 192.0.2.1:443 would be prefixed with:
-```
-0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00
-0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0xff 0xff 0xc0 0x00 0x02 0x01
-0x01 0xbb
-```
-
-## Relay Behavior
-
-Relays MUST:
-1. Accept queries over both TCP and UDP
-2. Communicate with upstream servers over UDP, even if client queries were sent over TCP
-3. Validate incoming packets:
-   - Check that the target IP is not in a private range
-   - Verify the port number is in an allowed range
-   - Ensure the DNSCrypt query doesn't start with `<anon-magic>`
-   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC)
-4. Forward valid queries unmodified to the server
-5. Verify server responses:
-   - Check that the response is smaller than the query
-   - Validate the response format (either starts with resolver magic or is a certificate response)
-   - Forward valid responses unmodified to the client
-
-## Operational Considerations
-
-When using Anonymized DNSCrypt:
-1. Clients should choose relays and servers operated by different entities
-2. Having relays and servers on different networks is recommended
-3. Relay operators should:
-   - Refuse forwarding to reserved IP ranges
-   - Restrict allowed server ports (typically only allowing port 443)
-   - Monitor for abuse
-
---- back
