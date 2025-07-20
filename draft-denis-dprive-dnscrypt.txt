@@ -107,15 +107,22 @@ Table of Contents
    The Domain Name System (DNS) [RFC1035] is a critical component of
    Internet infrastructure, but its original design did not include
    security features to protect the confidentiality and integrity of
-   queries and responses.  This document defines the DNSCrypt protocol,
-   which encrypts and authenticates DNS queries and responses, improving
-   confidentiality, integrity, and resistance to attacks affecting the
-   original DNS protocol.
+   queries and responses.  This fundamental security gap exposes DNS
+   traffic to eavesdropping, tampering, and various attacks that can
+   compromise user privacy and network security.
 
-   The protocol is designed to be lightweight, extensible, and simple to
-   implement securely on top of an existing DNS client, server or proxy.
-   It provides a standardized approach to securing DNS communications
-   while maintaining compatibility with existing DNS infrastructure.
+   To address these vulnerabilities, this document defines the DNSCrypt
+   protocol, which encrypts and authenticates DNS queries and responses,
+   providing strong confidentiality, integrity, and resistance to
+   attacks affecting the original DNS protocol.  The protocol is
+   designed to be lightweight, extensible, and simple to implement
+   securely on top of existing DNS infrastructure, offering a practical
+   solution for securing DNS communications without requiring
+   significant changes to current systems.
+
+   The following sections detail the protocol's design, starting with an
+   overview of its operation and then progressing through the technical
+   specifications needed for implementation.
 
 2.  Conventions And Definitions
 
@@ -190,7 +197,8 @@ Table of Contents
    indefinitely until the certificate expires or a new certificate is
    available.
 
-   Key characteristics of the ongoing communication phase:
+   The ongoing communication phase operates with several important
+   characteristics that distinguish it from traditional DNS:
 
    1.  *Stateless Operation*: Each query and response is independent.
        The server does not maintain state between queries.
@@ -210,7 +218,15 @@ Table of Contents
        queries before receiving responses, and responses can be
        processed as they arrive.
 
+   With this understanding of the protocol flow, we can now examine the
+   specific components that make up DNSCrypt packets and their
+   structure.
+
 4.  Protocol Components
+
+   The DNSCrypt protocol defines specific packet structures for both
+   client queries and server responses.  These components work together
+   to provide the security properties described in the previous section.
 
    Definitions for client queries:
 
@@ -325,11 +341,17 @@ Table of Contents
    |                                                               |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+   These packet structures form the foundation for the protocol
+   operations described in the next section, which details how clients
+   and servers use these components to establish secure communications.
+
 5.  Protocol Description
 
 5.1.  Overview
 
-   The DNSCrypt protocol operates through the following steps:
+   Building on the protocol flow and components described earlier, this
+   section provides a detailed examination of how the DNSCrypt protocol
+   operates.  The protocol follows a well-defined sequence of steps:
 
    1.  The DNSCrypt client sends a DNS query to a DNSCrypt server to
        retrieve the server's public keys.
@@ -380,6 +402,10 @@ Table of Contents
       vulnerabilities in regular DNS over UDP: amplification [RFC5358]
       and fragmentation attacks.
 
+   These key features enable DNSCrypt to provide robust security while
+   maintaining practical deployability.  The protocol's transport
+   characteristics further support these goals.
+
 5.2.  Transport
 
    The DNSCrypt protocol can use the UDP and TCP transport protocols.
@@ -388,6 +414,11 @@ Table of Contents
 
    Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by
    default.
+
+   The choice of port 443 helps DNSCrypt traffic blend with HTTPS
+   traffic, providing some protection against traffic analysis.  Once
+   transport is established, the next step is session establishment
+   through certificate exchange.
 
 5.3.  Session Establishment
 
@@ -423,6 +454,10 @@ Table of Contents
    key, along with the client's public key, the resolver is able to
    verify, decrypt the query, and then encrypt the response utilizing
    identical parameters.
+
+   Once the session is established through certificate exchange, the
+   ongoing query processing follows specific rules for different
+   transport protocols and padding requirements.
 
 5.4.  Query Processing
 
@@ -480,6 +515,10 @@ Table of Contents
    The client MAY decrease <min-query-len>, but the length MUST remain a
    multiple of 64 bytes.
 
+   While UDP queries require careful length management due to truncation
+   concerns, TCP queries follow different padding rules due to the
+   reliable nature of the transport.
+
 5.4.3.  Padding For Client Queries Over TCP
 
    Queries MUST undergo padding using the ISO/IEC 7816-4 format before
@@ -525,6 +564,11 @@ Table of Contents
    the resolver MUST close the TCP connection to ensure security and
    comply with this revision of the protocol, which prohibits multiple
    transactions over the same TCP connection.
+
+   The query processing rules described above depend on the certificate
+   information obtained during session establishment.  The certificate
+   format and management procedures are critical to the protocol's
+   security.
 
 5.5.  Certificates
 
@@ -679,6 +723,11 @@ Table of Contents
    *  A certificate with a higher serial number than the current one is
       available.
 
+   The certificate management system ensures that cryptographic keys
+   remain fresh and that clients can smoothly transition to updated
+   certificates.  With the core protocol mechanics now established, we
+   can examine implementation considerations.
+
 6.  Implementation Status
 
    _Note: This section is to be removed before publishing as an RFC._
@@ -687,6 +736,10 @@ Table of Contents
    have been developed and verified for interoperability.  A
    comprehensive list of known implementations can be found at
    https://dnscrypt.info/implementations.
+
+   The successful deployment of multiple interoperable implementations
+   demonstrates the protocol's maturity.  However, proper implementation
+   requires careful attention to security considerations.
 
 7.  Security Considerations
 
@@ -715,6 +768,10 @@ Table of Contents
    4.  *Forward Secrecy*: Short-term key pairs are used for each
        session, providing forward secrecy.  Even if a long-term key is
        compromised, past communications remain secure.
+
+   These fundamental security properties depend on correct
+   implementation practices.  Several implementation-specific security
+   aspects require particular attention.
 
 7.2.  Implementation Security
 
@@ -769,6 +826,9 @@ Table of Contents
        *  Example: A client might cache valid certificates and check for
           updates hourly
 
+   Proper implementation of these security measures provides the
+   foundation for the protocol's attack mitigation capabilities.
+
 7.3.  Attack Mitigation
 
    DNSCrypt provides protection against several types of attacks:
@@ -790,6 +850,10 @@ Table of Contents
        replay attacks.  A replayed query would be detected due to nonce
        reuse.
 
+   While DNSCrypt effectively mitigates these attacks, implementers
+   should also be aware of privacy considerations that extend beyond
+   basic protocol security.
+
 7.4.  Privacy Considerations
 
    While DNSCrypt encrypts DNS traffic, there are some privacy
@@ -806,6 +870,9 @@ Table of Contents
    3.  *Certificate Requests*: Initial certificate requests are
        unencrypted and may reveal client capabilities.  This is a one-
        time exposure per session.
+
+   These privacy considerations complement the security measures and
+   should inform operational practices for DNSCrypt deployments.
 
 7.5.  Operational Security
 
@@ -847,6 +914,11 @@ Table of Contents
 
        *  Certificate request anomalies
 
+   These operational security practices work together with the technical
+   security measures to provide comprehensive protection.  Additional
+   operational considerations extend beyond security to include
+   practical deployment aspects.
+
 8.  Operational Considerations
 
    Special attention should be paid to the uniqueness of the generated
@@ -881,6 +953,11 @@ Table of Contents
    operation for each query.  This makes the computational overhead of
    DNSCrypt negligible compared to plain DNS.
 
+   While DNSCrypt provides strong encryption and authentication, some
+   use cases require additional privacy protection.  The Anonymized
+   DNSCrypt extension addresses scenarios where hiding client IP
+   addresses from resolvers is necessary.
+
 9.  Anonymized DNSCrypt
 
    While DNSCrypt encrypts DNS traffic, DNS server operators can still
@@ -888,6 +965,9 @@ Table of Contents
    the DNSCrypt protocol that allows queries and responses to be relayed
    by an intermediate server, hiding the client's IP address from the
    resolver.
+
+   This extension maintains all the security properties of standard
+   DNSCrypt while adding an additional layer of privacy protection.
 
 9.1.  Protocol Overview
 
@@ -985,6 +1065,11 @@ Table of Contents
 
        *  Forward valid responses unmodified to the client
 
+   These relay requirements ensure that anonymization does not
+   compromise the security properties of the underlying DNSCrypt
+   protocol.  Proper deployment requires additional operational
+   considerations.
+
 9.4.  Operational Considerations
 
    When using Anonymized DNSCrypt:
@@ -1002,6 +1087,10 @@ Table of Contents
           443)
 
        *  Monitor for abuse
+
+   These operational guidelines help ensure that Anonymized DNSCrypt
+   deployments provide the intended privacy benefits while maintaining
+   security and preventing abuse.
 
 10.  IANA Considerations
 
