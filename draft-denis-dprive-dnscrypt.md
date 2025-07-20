@@ -29,9 +29,11 @@ The DNSCrypt protocol is designed to encrypt and authenticate DNS traffic betwee
 
 # Introduction
 
-The Domain Name System (DNS) {{!RFC1035}} is a critical component of Internet infrastructure, but its original design did not include security features to protect the confidentiality and integrity of queries and responses. This document defines the DNSCrypt protocol, which encrypts and authenticates DNS queries and responses, improving confidentiality, integrity, and resistance to attacks affecting the original DNS protocol.
+The Domain Name System (DNS) {{!RFC1035}} is a critical component of Internet infrastructure, but its original design did not include security features to protect the confidentiality and integrity of queries and responses. This fundamental security gap exposes DNS traffic to eavesdropping, tampering, and various attacks that can compromise user privacy and network security.
 
-The protocol is designed to be lightweight, extensible, and simple to implement securely on top of an existing DNS client, server or proxy. It provides a standardized approach to securing DNS communications while maintaining compatibility with existing DNS infrastructure.
+To address these vulnerabilities, this document defines the DNSCrypt protocol, which encrypts and authenticates DNS queries and responses, providing strong confidentiality, integrity, and resistance to attacks affecting the original DNS protocol. The protocol is designed to be lightweight, extensible, and simple to implement securely on top of existing DNS infrastructure, offering a practical solution for securing DNS communications without requiring significant changes to current systems.
+
+The following sections detail the protocol's design, starting with an overview of its operation and then progressing through the technical specifications needed for implementation.
 
 # Conventions And Definitions
 
@@ -93,7 +95,7 @@ The initial setup phase (steps 1-2) occurs only when:
 
 After the initial setup, the client and server engage in the ongoing communication phase (steps 3-8), where encrypted queries and responses are exchanged as needed. This phase can be repeated indefinitely until the certificate expires or a new certificate is available.
 
-Key characteristics of the ongoing communication phase:
+The ongoing communication phase operates with several important characteristics that distinguish it from traditional DNS:
 
 1. **Stateless Operation**: Each query and response is independent. The server does not maintain state between queries.
 
@@ -103,7 +105,11 @@ Key characteristics of the ongoing communication phase:
 
 4. **Asynchronous Communication**: The protocol does not require strict request-response pairing. A client can send multiple queries before receiving responses, and responses can be processed as they arrive.
 
+With this understanding of the protocol flow, we can now examine the specific components that make up DNSCrypt packets and their structure.
+
 # Protocol Components
+
+The DNSCrypt protocol defines specific packet structures for both client queries and server responses. These components work together to provide the security properties described in the previous section.
 
 
 Definitions for client queries:
@@ -176,11 +182,13 @@ The following diagram shows the structure of a DNSCrypt response packet:
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ~~~
 
+These packet structures form the foundation for the protocol operations described in the next section, which details how clients and servers use these components to establish secure communications.
+
 # Protocol Description
 
 ## Overview
 
-The DNSCrypt protocol operates through the following steps:
+Building on the protocol flow and components described earlier, this section provides a detailed examination of how the DNSCrypt protocol operates. The protocol follows a well-defined sequence of steps:
 
 1. The DNSCrypt client sends a DNS query to a DNSCrypt server to retrieve the server's public keys.
 2. The client generates its own key pair.
@@ -197,12 +205,16 @@ Key features of the DNSCrypt protocol include:
 - Shared infrastructure: Recursive DNS servers can accept DNSCrypt queries on the same IP address and port used for regular DNS traffic.
 - Attack mitigation: DNSCrypt mitigates two common security vulnerabilities in regular DNS over UDP: amplification {{!RFC5358}} and fragmentation attacks.
 
+These key features enable DNSCrypt to provide robust security while maintaining practical deployability. The protocol's transport characteristics further support these goals.
+
 ## Transport
 
 The DNSCrypt protocol can use the UDP and TCP transport protocols.
 DNSCrypt clients and resolvers SHOULD support the protocol via UDP, and MUST support it over TCP.
 
 Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by default.
+
+The choice of port 443 helps DNSCrypt traffic blend with HTTPS traffic, providing some protection against traffic analysis. Once transport is established, the next step is session establishment through certificate exchange.
 
 ## Session Establishment
 
@@ -217,6 +229,8 @@ Every certificate contains a unique magic number that the client MUST include at
 The encryption algorithm, resolver public key, and client magic number from the chosen certificate are then used by the client to send encrypted queries. These queries include the client public key.
 
 With the knowledge of the chosen certificate and corresponding secret key, along with the client's public key, the resolver is able to verify, decrypt the query, and then encrypt the response utilizing identical parameters.
+
+Once the session is established through certificate exchange, the ongoing query processing follows specific rules for different transport protocols and padding requirements.
 
 ## Query Processing
 
@@ -254,6 +268,8 @@ If the response has the TC flag set, the client MUST:
 
 The client MAY decrease `<min-query-len>`, but the length MUST remain a multiple of 64 bytes.
 
+While UDP queries require careful length management due to truncation concerns, TCP queries follow different padding rules due to the reliable nature of the transport.
+
 ### Padding For Client Queries Over TCP
 
 Queries MUST undergo padding using the ISO/IEC 7816-4 format before being encrypted. The padding starts with a byte valued `0x80` followed by a variable number of NUL bytes.
@@ -285,6 +301,8 @@ In contrast, cleartext DNS query payloads do not necessitate a length prefix, re
 Unlike UDP queries, a query sent over TCP can be shorter than the response.
 
 After having received a response from the resolver, the client and the resolver MUST close the TCP connection to ensure security and comply with this revision of the protocol, which prohibits multiple transactions over the same TCP connection.
+
+The query processing rules described above depend on the certificate information obtained during session establishment. The certificate format and management procedures are critical to the protocol's security.
 
 ## Certificates
 
@@ -381,11 +399,15 @@ or
 
 - A certificate with a higher serial number than the current one is available.
 
+The certificate management system ensures that cryptographic keys remain fresh and that clients can smoothly transition to updated certificates. With the core protocol mechanics now established, we can examine implementation considerations.
+
 # Implementation Status
 
 *Note: This section is to be removed before publishing as an RFC.*
 
 Multiple implementations of the protocol described in this document have been developed and verified for interoperability. A comprehensive list of known implementations can be found at [](https://dnscrypt.info/implementations).
+
+The successful deployment of multiple interoperable implementations demonstrates the protocol's maturity. However, proper implementation requires careful attention to security considerations.
 
 # Security Considerations
 
@@ -402,6 +424,8 @@ The DNSCrypt protocol provides several security benefits:
 3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers. Clients can verify they are communicating with the intended resolver and not an impostor.
 
 4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy. Even if a long-term key is compromised, past communications remain secure.
+
+These fundamental security properties depend on correct implementation practices. Several implementation-specific security aspects require particular attention.
 
 ## Implementation Security
 
@@ -430,6 +454,8 @@ Implementations should consider the following security aspects:
    - Clients MUST prefer certificates with higher serial numbers
    - Example: A client might cache valid certificates and check for updates hourly
 
+Proper implementation of these security measures provides the foundation for the protocol's attack mitigation capabilities.
+
 ## Attack Mitigation
 
 DNSCrypt provides protection against several types of attacks:
@@ -442,6 +468,8 @@ DNSCrypt provides protection against several types of attacks:
 
 4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks. A replayed query would be detected due to nonce reuse.
 
+While DNSCrypt effectively mitigates these attacks, implementers should also be aware of privacy considerations that extend beyond basic protocol security.
+
 ## Privacy Considerations
 
 While DNSCrypt encrypts DNS traffic, there are some privacy considerations:
@@ -451,6 +479,8 @@ While DNSCrypt encrypts DNS traffic, there are some privacy considerations:
 2. **Query Patterns**: Even with encryption, the size and timing of queries may reveal information. Padding helps mitigate this but doesn't eliminate it completely.
 
 3. **Certificate Requests**: Initial certificate requests are unencrypted and may reveal client capabilities. This is a one-time exposure per session.
+
+These privacy considerations complement the security measures and should inform operational practices for DNSCrypt deployments.
 
 ## Operational Security
 
@@ -476,6 +506,8 @@ Operators should consider:
    - Unusual query patterns
    - Certificate request anomalies
 
+These operational security practices work together with the technical security measures to provide comprehensive protection. Additional operational considerations extend beyond security to include practical deployment aspects.
+
 # Operational Considerations
 
 Special attention should be paid to the uniqueness of the generated secret keys.
@@ -492,9 +524,13 @@ Provider public keys MAY be published as DNSSEC-signed `TXT` records {{!RFC1035}
 
 As a client is likely to reuse the same key pair many times, servers are encouraged to cache shared keys instead of performing the X25519 operation for each query. This makes the computational overhead of DNSCrypt negligible compared to plain DNS.
 
+While DNSCrypt provides strong encryption and authentication, some use cases require additional privacy protection. The Anonymized DNSCrypt extension addresses scenarios where hiding client IP addresses from resolvers is necessary.
+
 # Anonymized DNSCrypt
 
 While DNSCrypt encrypts DNS traffic, DNS server operators can still observe client IP addresses. Anonymized DNSCrypt is an extension to the DNSCrypt protocol that allows queries and responses to be relayed by an intermediate server, hiding the client's IP address from the resolver.
+
+This extension maintains all the security properties of standard DNSCrypt while adding an additional layer of privacy protection.
 
 ## Protocol Overview
 
@@ -575,6 +611,8 @@ Relays MUST:
    - Validate the response format (either starts with resolver magic or is a certificate response)
    - Forward valid responses unmodified to the client
 
+These relay requirements ensure that anonymization does not compromise the security properties of the underlying DNSCrypt protocol. Proper deployment requires additional operational considerations.
+
 ## Operational Considerations
 
 When using Anonymized DNSCrypt:
@@ -585,6 +623,8 @@ When using Anonymized DNSCrypt:
    - Refuse forwarding to reserved IP ranges {{!RFC1918}}
    - Restrict allowed server ports (typically only allowing port 443)
    - Monitor for abuse
+
+These operational guidelines help ensure that Anonymized DNSCrypt deployments provide the intended privacy benefits while maintaining security and preventing abuse.
 
 # IANA Considerations
 
