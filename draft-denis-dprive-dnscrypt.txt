@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                             15 April 2025
-Expires: 17 October 2025
+Intended status: Informational                              20 July 2025
+Expires: 21 January 2026
 
 
                          The DNSCrypt Protocol
@@ -48,7 +48,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 17 October 2025.
+   This Internet-Draft will expire on 21 January 2026.
 
 Copyright Notice
 
@@ -217,7 +217,7 @@ Table of Contents
    *  <dnscrypt-query>: <client-magic> <client-pk> <client-nonce>
       <encrypted-query>
 
-   *  <client-magic>: a 8 byte identifier for the resolver certificate
+   *  <client-magic>: an 8 byte identifier for the resolver certificate
       chosen by the client.
 
    *  <client-pk>: the client's public key, whose length depends on the
@@ -430,7 +430,7 @@ Table of Contents
 
    Before encryption takes place, queries are padded according to the
    ISO/IEC 7816-4 standard.  Padding begins with a single byte holding
-   the value 0x80, succeeded by any number of NUL bytes.
+   the value 0x80, followed by any number of NUL bytes.
 
    <client-query> <client-query-pad> MUST be at least <min-query-len>
    bytes.  In this context, <client-query> represents the original
@@ -447,10 +447,11 @@ Table of Contents
 5.4.2.  Client Queries Over UDP
 
    UDP-based client queries need to follow the padding guidelines
-   outlined in section 3.
+   outlined in the previous section.
 
    Each UDP packet MUST hold one query, with the complete content
-   comprising the <dnscrypt-query> structure specified in section 2.
+   comprising the <dnscrypt-query> structure specified in the Protocol
+   Components section.
 
    UDP packets employing the DNSCrypt protocol have the capability to be
    split into distinct IP packets sharing the same source port.
