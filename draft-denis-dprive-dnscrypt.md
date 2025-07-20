@@ -109,7 +109,7 @@ Key characteristics of the ongoing communication phase:
 Definitions for client queries:
 
 - `<dnscrypt-query>`:  `<client-magic>` `<client-pk>` `<client-nonce>` `<encrypted-query>`
-- `<client-magic>`: a 8 byte identifier for the resolver certificate chosen by the client.
+- `<client-magic>`: an 8 byte identifier for the resolver certificate chosen by the client.
 - `<client-pk>`: the client's public key, whose length depends on the encryption algorithm defined in the chosen certificate.
 - `<client-sk>`: the client's secret key.
 - `<resolver-pk>`: the resolver's public key.
@@ -222,7 +222,7 @@ With the knowledge of the chosen certificate and corresponding secret key, along
 
 ### Padding For Client Queries Over UDP
 
-Before encryption takes place, queries are padded according to the ISO/IEC 7816-4 standard. Padding begins with a single byte holding the value `0x80`, succeeded by any number of `NUL` bytes.
+Before encryption takes place, queries are padded according to the ISO/IEC 7816-4 standard. Padding begins with a single byte holding the value `0x80`, followed by any number of `NUL` bytes.
 
 `<client-query>` `<client-query-pad>` MUST be at least `<min-query-len>` bytes.
 In this context, `<client-query>` represents the original client query, while `<client-query-pad>` denotes the added padding.
@@ -233,9 +233,9 @@ Should the client query's length fall short of  `<min-query-len>` bytes, the pad
 
 ### Client Queries Over UDP
 
-UDP-based client queries need to follow the padding guidelines outlined in section 3.
+UDP-based client queries need to follow the padding guidelines outlined in the previous section.
 
-Each UDP packet MUST hold one query, with the complete content comprising the `<dnscrypt-query>` structure specified in section 2.
+Each UDP packet MUST hold one query, with the complete content comprising the `<dnscrypt-query>` structure specified in the Protocol Components section.
 
 UDP packets employing the DNSCrypt protocol have the capability to be split into distinct IP packets sharing the same source port.
 
@@ -256,8 +256,7 @@ The client MAY decrease `<min-query-len>`, but the length MUST remain a multiple
 
 ### Padding For Client Queries Over TCP
 
-Queries MUST undergo padding using the ISO/IEC 7816-4 format before being encrypted. The padding starts with a byte valued `0x80` followed by a
-variable number of NUL bytes.
+Queries MUST undergo padding using the ISO/IEC 7816-4 format before being encrypted. The padding starts with a byte valued `0x80` followed by a variable number of NUL bytes.
 
 The length of `<client-query-pad>` is selected randomly, ranging from 1 to 256 bytes, including the initial byte valued at `0x80`. The total length of `<client-query>` `<client-query-pad>` MUST be a multiple of 64 bytes.
 
