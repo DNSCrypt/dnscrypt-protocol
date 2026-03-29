@@ -101,9 +101,7 @@ The ongoing communication phase operates with several important characteristics 
 
 2. **Out-of-Order Responses**: Responses may arrive in a different order than the queries were sent. Each response is self-contained and can be processed independently.
 
-3. **Multiple Responses**: A single query may result in multiple responses, and responses can be received without sending new queries. For example, a server might send additional responses for a query that has multiple answers or requires additional processing.
-
-4. **Asynchronous Communication**: The protocol does not require strict request-response pairing. A client can send multiple queries before receiving responses, and responses can be processed as they arrive.
+3. **Concurrent Queries**: A client can send multiple queries without waiting for earlier responses, and responses can be processed independently as they arrive.
 
 With this understanding of the protocol flow, we can now examine the specific components that make up DNSCrypt packets and their structure.
 
@@ -123,7 +121,7 @@ Definitions for client queries:
 - `AE`: the authenticated encryption function.
 - `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered and the query length MUST be kept in queries prepared to be sent over TCP {{!RFC7766}}.
+- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered.
 - `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
@@ -136,10 +134,10 @@ Definitions for server responses:
 - `<client-pk>`: the client's public key.
 - `<resolver-sk>`: the resolver's secret key.
 - `<resolver-nonce>`: a unique response identifier for a given `(<client-pk>, <resolver-sk>)` tuple. The length of `<resolver-nonce>` depends on the chosen encryption algorithm.
-- `DE`: the authenticated decryption function.
-- `<encrypted-response>`: `DE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
+- `AE`: the authenticated encryption function.
+- `<encrypted-response>`: `AE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered and the response length MUST be kept in responses prepared to be sent over TCP {{!RFC7766}}.
+- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered.
 - `<resolver-response-pad>`: the variable-length padding.
 
 The following diagram shows the structure of a DNSCrypt query packet:
@@ -194,8 +192,8 @@ Building on the protocol flow and components described earlier, this section pro
 2. The client generates its own key pair.
 3. The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is transmitted to the server via standard DNS transport mechanisms {{!RFC1035}}.
 4. Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.
-5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the client's public key and the client's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
-6. The client authenticates and decrypts the response using its secret key, the server's public key, the client's nonce included in the response, and the client's original nonce. If the response was truncated, the client MAY adjust internal parameters and retry over TCP {{!RFC7766}}. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
+5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the shared key and a nonce made of the client's nonce followed by the resolver's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
+6. The client authenticates and decrypts the response using the shared key and the nonce included in the response. If the response was truncated, the client MAY adjust internal parameters and retry over TCP {{!RFC7766}}. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
 Key features of the DNSCrypt protocol include:
 
@@ -294,9 +292,7 @@ or
 
 ### Client Queries Over TCP
 
-The sole differences between encrypted client queries transmitted via TCP and those sent using UDP lie in the padding length calculation and the inclusion of a length prefix, represented as two big-endian bytes.
-
-In contrast, cleartext DNS query payloads do not necessitate a length prefix, regardless of whether they are transmitted via TCP.
+The sole differences between encrypted client queries transmitted via TCP and those sent using UDP lie in the padding length calculation and the inclusion of a two-byte big-endian length prefix for the encrypted DNSCrypt packet.
 
 Unlike UDP queries, a query sent over TCP can be shorter than the response.
 
@@ -423,7 +419,7 @@ The DNSCrypt protocol provides several security benefits:
 
 3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers. Clients can verify they are communicating with the intended resolver and not an impostor.
 
-4. **Forward Secrecy**: Short-term key pairs are used for each session, providing forward secrecy. Even if a long-term key is compromised, past communications remain secure.
+4. **Short-Term Resolver Keys**: Resolver certificates carry short-term public keys, limiting the impact of key compromise and enabling regular key rotation.
 
 These fundamental security properties depend on correct implementation practices. Several implementation-specific security aspects require particular attention.
 
@@ -432,15 +428,14 @@ These fundamental security properties depend on correct implementation practices
 Implementations should consider the following security aspects:
 
 1. **Key Management**:
-   - Resolvers MUST rotate their short-term key pairs at least every 24 hours
-   - Previous secret keys MUST be securely erased after rotation
+   - Resolvers MUST rotate their short-term key pairs at most every 24 hours
+   - Previous secret keys MUST be discarded after rotation
    - Provider secret keys used for certificate signing SHOULD be stored in hardware security modules (HSMs)
    - Example: A resolver might generate new key pairs daily at midnight UTC
 
 2. **Nonce Management**:
    - Nonces MUST NOT be reused for a given shared secret
-   - Clients SHOULD include timestamps in their nonces to prevent replay attacks
-   - Resolvers SHOULD verify that nonces are within a reasonable time window (e.g., ±5 minutes)
+   - Clients can include timestamps in their nonces in order to quickly discard stale responses
    - Example: A nonce might be constructed as: `timestamp || random_bytes`
 
 3. **Padding**:
@@ -464,9 +459,9 @@ DNSCrypt provides protection against several types of attacks:
 
 2. **Amplification Attacks**: The padding requirements and minimum query length help prevent amplification attacks {{!RFC5358}}. For example, a 256-byte minimum query size limits the amplification factor.
 
-3. **Fragmentation Attacks**: The protocol handles fragmentation in a way that prevents certain types of attacks. Large responses are properly fragmented and reassembled.
+3. **Fragmentation Attacks**: The protocol mitigates fragmentation risks by padding queries, allowing truncated UDP responses, and retrying over TCP when necessary.
 
-4. **Replay Attacks**: The use of nonces and timestamps helps prevent replay attacks. A replayed query would be detected due to nonce reuse.
+4. **Replay Exposure Reduction**: Nonces make responses query-specific, and clients can use timestamps in client nonces to quickly discard stale responses.
 
 While DNSCrypt effectively mitigates these attacks, implementers should also be aware of privacy considerations that extend beyond basic protocol security.
 
@@ -645,7 +640,7 @@ The `Box-XChaChaPoly` algorithm combines the `X25519` {{!RFC7748}} key exchange 
 
 `HChaCha20` is based on the construction and security proof used to create XSalsa20, an extended-nonce variant of Salsa20.
 
-The `HChaCha20` function takes the following input paramters:
+The `HChaCha20` function takes the following input parameters:
 
 - `<k>`: secret key
 - `<in>`: a 128-bit input
@@ -672,7 +667,7 @@ block_out[7] =
    LOAD32_LE(block_bytes[60..][0..4]) - LOAD32_LE(in[12..][0..4])
 
 for i in 0..8:
-    STORE32_LE(out[i * 4..][0..4], blocks_out[i])
+    STORE32_LE(out[i * 4..][0..4], block_out[i])
 
 return out
 ~~~
@@ -727,7 +722,7 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 
 - `<k>`: encryption key
 - `<m>`: message to encrypt
-- `<pk>`: recipent's public key
+- `<pk>`: recipient's public key
 - `<sk>`: sender's secret key
 - `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
 - `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
