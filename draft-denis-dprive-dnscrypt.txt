@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                              20 July 2025
-Expires: 21 January 2026
+Intended status: Informational                             29 March 2026
+Expires: 30 September 2026
 
 
                          The DNSCrypt Protocol
@@ -48,11 +48,11 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 21 January 2026.
+   This Internet-Draft will expire on 30 September 2026.
 
 Copyright Notice
 
-   Copyright (c) 2025 IETF Trust and the persons identified as the
+   Copyright (c) 2026 IETF Trust and the persons identified as the
    document authors.  All rights reserved.
 
    This document is subject to BCP 78 and the IETF Trust's Legal
@@ -207,16 +207,9 @@ Table of Contents
        order than the queries were sent.  Each response is self-
        contained and can be processed independently.
 
-   3.  *Multiple Responses*: A single query may result in multiple
-       responses, and responses can be received without sending new
-       queries.  For example, a server might send additional responses
-       for a query that has multiple answers or requires additional
-       processing.
-
-   4.  *Asynchronous Communication*: The protocol does not require
-       strict request-response pairing.  A client can send multiple
-       queries before receiving responses, and responses can be
-       processed as they arrive.
+   3.  *Concurrent Queries*: A client can send multiple queries without
+       waiting for earlier responses, and responses can be processed
+       independently as they arrive.
 
    With this understanding of the protocol flow, we can now examine the
    specific components that make up DNSCrypt packets and their
@@ -259,9 +252,7 @@ Table of Contents
       chosen certificate.
 
    *  <client-query>: the unencrypted client query.  The query is not
-      modified; in particular, the query flags are not altered and the
-      query length MUST be kept in queries prepared to be sent over TCP
-      [RFC7766].
+      modified; in particular, the query flags are not altered.
 
    *  <client-nonce-pad>: <client-nonce> length is half the nonce length
       required by the encryption algorithm.  In client queries, the
@@ -288,9 +279,9 @@ Table of Contents
       (<client-pk>, <resolver-sk>) tuple.  The length of <resolver-
       nonce> depends on the chosen encryption algorithm.
 
-   *  DE: the authenticated decryption function.
+   *  AE: the authenticated encryption function.
 
-   *  <encrypted-response>: DE(<shared-key>, <nonce>, <resolver-
+   *  <encrypted-response>: AE(<shared-key>, <nonce>, <resolver-
       response> <resolver-response-pad>)
 
    *  <shared-key>: the shared key derived from <resolver-sk> and
@@ -299,8 +290,7 @@ Table of Contents
 
    *  <resolver-response>: the unencrypted resolver response.  The
       response is not modified; in particular, the query flags are not
-      altered and the response length MUST be kept in responses prepared
-      to be sent over TCP [RFC7766].
+      altered.
 
    *  <resolver-response-pad>: the variable-length padding.
 
@@ -369,14 +359,14 @@ Table of Contents
        a regular DNS packet that doesn't require any special processing.
 
    5.  To send an encrypted response, the server adds padding to the
-       unmodified response, encrypts the result using the client's
-       public key and the client's nonce, and truncates the response if
-       necessary.  The resulting packet, truncated or not, is sent to
-       the client using standard DNS mechanisms.
+       unmodified response, encrypts the result using the shared key and
+       a nonce made of the client's nonce followed by the resolver's
+       nonce, and truncates the response if necessary.  The resulting
+       packet, truncated or not, is sent to the client using standard
+       DNS mechanisms.
 
-   6.  The client authenticates and decrypts the response using its
-       secret key, the server's public key, the client's nonce included
-       in the response, and the client's original nonce.  If the
+   6.  The client authenticates and decrypts the response using the
+       shared key and the nonce included in the response.  If the
        response was truncated, the client MAY adjust internal parameters
        and retry over TCP [RFC7766].  If not, the output is a regular
        DNS response that can be directly forwarded to applications and
@@ -551,11 +541,8 @@ Table of Contents
 
    The sole differences between encrypted client queries transmitted via
    TCP and those sent using UDP lie in the padding length calculation
-   and the inclusion of a length prefix, represented as two big-endian
-   bytes.
-
-   In contrast, cleartext DNS query payloads do not necessitate a length
-   prefix, regardless of whether they are transmitted via TCP.
+   and the inclusion of a two-byte big-endian length prefix for the
+   encrypted DNSCrypt packet.
 
    Unlike UDP queries, a query sent over TCP can be shorter than the
    response.
@@ -765,9 +752,9 @@ Table of Contents
        authentication of resolvers.  Clients can verify they are
        communicating with the intended resolver and not an impostor.
 
-   4.  *Forward Secrecy*: Short-term key pairs are used for each
-       session, providing forward secrecy.  Even if a long-term key is
-       compromised, past communications remain secure.
+   4.  *Short-Term Resolver Keys*: Resolver certificates carry short-
+       term public keys, limiting the impact of key compromise and
+       enabling regular key rotation.
 
    These fundamental security properties depend on correct
    implementation practices.  Several implementation-specific security
@@ -779,10 +766,10 @@ Table of Contents
 
    1.  *Key Management*:
 
-       *  Resolvers MUST rotate their short-term key pairs at least
-          every 24 hours
+       *  Resolvers MUST rotate their short-term key pairs at most every
+          24 hours
 
-       *  Previous secret keys MUST be securely erased after rotation
+       *  Previous secret keys MUST be discarded after rotation
 
        *  Provider secret keys used for certificate signing SHOULD be
           stored in hardware security modules (HSMs)
@@ -794,11 +781,8 @@ Table of Contents
 
        *  Nonces MUST NOT be reused for a given shared secret
 
-       *  Clients SHOULD include timestamps in their nonces to prevent
-          replay attacks
-
-       *  Resolvers SHOULD verify that nonces are within a reasonable
-          time window (e.g., ±5 minutes)
+       *  Clients can include timestamps in their nonces in order to
+          quickly discard stale responses
 
        *  Example: A nonce might be constructed as: timestamp ||
           random_bytes
@@ -842,13 +826,13 @@ Table of Contents
        example, a 256-byte minimum query size limits the amplification
        factor.
 
-   3.  *Fragmentation Attacks*: The protocol handles fragmentation in a
-       way that prevents certain types of attacks.  Large responses are
-       properly fragmented and reassembled.
+   3.  *Fragmentation Attacks*: The protocol mitigates fragmentation
+       risks by padding queries, allowing truncated UDP responses, and
+       retrying over TCP when necessary.
 
-   4.  *Replay Attacks*: The use of nonces and timestamps helps prevent
-       replay attacks.  A replayed query would be detected due to nonce
-       reuse.
+   4.  *Replay Exposure Reduction*: Nonces make responses query-
+       specific, and clients can use timestamps in client nonces to
+       quickly discard stale responses.
 
    While DNSCrypt effectively mitigates these attacks, implementers
    should also be aware of privacy considerations that extend beyond
@@ -1121,7 +1105,7 @@ Table of Contents
    HChaCha20 is based on the construction and security proof used to
    create XSalsa20, an extended-nonce variant of Salsa20.
 
-   The HChaCha20 function takes the following input paramters:
+   The HChaCha20 function takes the following input parameters:
 
    *  <k>: secret key
 
@@ -1149,7 +1133,7 @@ Table of Contents
       LOAD32_LE(block_bytes[60..][0..4]) - LOAD32_LE(in[12..][0..4])
 
    for i in 0..8:
-       STORE32_LE(out[i * 4..][0..4], blocks_out[i])
+       STORE32_LE(out[i * 4..][0..4], block_out[i])
 
    return out
 
@@ -1219,7 +1203,7 @@ Table of Contents
 
    *  <m>: message to encrypt
 
-   *  <pk>: recipent's public key
+   *  <pk>: recipient's public key
 
    *  <sk>: sender's secret key
 
