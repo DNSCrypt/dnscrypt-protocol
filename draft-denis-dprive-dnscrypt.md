@@ -766,7 +766,7 @@ A resumed query uses a distinct packet form, with the resume magic in place of `
                        <client-nonce> <encrypted-query>
 ~~~
 
-`<resume-magic>` is a reserved 8-byte value that MUST NOT collide with any valid `<client-magic>`, with `<resolver-magic>`, with the Anonymized DNSCrypt `<anon-magic>`, or with seven leading zero bytes. On receiving a resumed query, the resolver locates the ticket key from `<ticket-key-id>`, opens the ticket, and rejects the query if the ticket cannot be opened, is expired, or seals a `<client-magic>` or `<es-version>` that does not match an acceptable current certificate. It then derives the per-query key:
+`<resume-magic>` is a reserved 8-byte value that MUST NOT collide with any valid `<client-magic>`, with `<resolver-magic>`, with the Anonymized DNSCrypt `<anon-magic>`, or with seven leading zero bytes. On receiving a resumed query, the resolver locates the ticket key from `<ticket-key-id>`, opens the ticket, and rejects the query if the ticket cannot be opened, is expired, or if any sealed certificate-context field does not match an acceptable current certificate. The sealed certificate-context fields are `<es-version>`, `<client-magic>`, `<serial>`, `<ts-end>`, and `<profile-extension-hash>`; `<profile-extension-hash>` is compared to `SHA-256(<extensions>)` for the matched certificate. It then derives the per-query key:
 
 ~~~
 <shared-key> ::= HKDF-SHA256(IKM  = resume-secret,
@@ -1311,7 +1311,7 @@ These vectors pin the required failure behavior. None of them produce a distingu
 2. `<es-version>` mismatch: the on-the-wire `<es-version>` differs from the copy inside the signed extension. The client MUST reject the certificate.
 3. Corrupted ticket AEAD: one byte of the sealed region of `<ticket>` in a resumed query is flipped. AEAD opening fails, and the resolver MUST silently drop the query.
 4. Expired or rotated ticket: `<ticket-expiry>` is in the past, or `<ticket-key-id>` names a `TK` that has been rotated out. The resolver MUST silently drop the query; the client re-handshakes with a query that carries a ciphertext.
-5. Ticket context mismatch: the `<client-magic>` or `<es-version>` sealed in the ticket does not match the resumption context. The resolver MUST silently drop the query.
+5. Ticket context mismatch: any sealed certificate-context field in the ticket (`<es-version>`, `<client-magic>`, `<serial>`, `<ts-end>`, or `<profile-extension-hash>`) does not match the resumption context. The resolver MUST silently drop the query.
 6. Malformed KEM ciphertext: one byte of `<client-pk>` in a query that carries a ciphertext is flipped. X-Wing implicit rejection yields a different shared secret, authentication fails, and the resolver MUST silently drop the query, with no distinct error or timing.
 7. Repeated nonce (client obligation): reusing a `<client-nonce>` under one ticket reuses both the derived key and the AEAD nonce; this is a client MUST NOT. A stateless resolver cannot detect it, so there is no wire vector; it is listed to make the obligation explicit.
 8. Under-padded resumed query: a resumed UDP query padded below the 256-byte floor decrypts correctly but violates the anti-amplification rule, and an Anonymized DNSCrypt relay MAY drop it on the response-size check.
