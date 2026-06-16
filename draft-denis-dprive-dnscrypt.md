@@ -613,7 +613,8 @@ Relays MUST:
 4. Forward valid queries unmodified to the server
 5. Verify server responses:
 
-   - Check that the response is smaller than the query
+   - For encrypted DNSCrypt responses, check that the response is smaller than the query
+   - For certificate responses, check that the response transaction ID and query name match the relayed certificate query
    - Validate the response format (either starts with resolver magic or is a certificate response)
    - Forward valid responses unmodified to the client
 
@@ -663,13 +664,24 @@ where `<ext-version>` is `0x01`, `<kdf-id>` is `0x01` for HKDF-SHA256 {{!RFC5869
 
 The existing signature already provides implicit integrity for `<es-version>`, because `<resolver-pk>` is signed and its length follows from `<es-version>`: altering the version shifts the signed region and causes verification to fail, as long as distinct encryption systems use distinct `<resolver-pk>` lengths. The signed profile extension makes the binding explicit and preserves it should a future encryption system reuse an existing length.
 
-PQ certificates are approximately 1.3 KB. A certificate response that contains one therefore exceeds 512 bytes, so certificate retrieval relies on EDNS(0) {{!RFC6891}} or the existing fallback to TCP {{!RFC7766}}.
+PQ certificates are approximately 1.3 KB before DNS `TXT` record framing. A single 1320-byte PQ certificate requires six `TXT` character-strings and therefore about 1338 bytes as one answer RR; a response containing one classical 124-byte certificate and one PQ certificate is typically about 1.5 KB, depending on the provider name. A response with two classical certificates and two PQ certificates is typically about 3.0 KB. A response with one classical certificate and three PQ certificates will normally exceed 4096 octets.
+
+A certificate response that contains a PQ certificate exceeds 512 bytes, so retrieval relies on EDNS(0) {{!RFC6891}}, TCP {{!RFC7766}}, or both. A 4096-octet DNS response is a useful upper bound for certificate responses, but it is not a fragmentation-avoidance target. Operators that need maximum UDP robustness SHOULD use a lower target; however, one PQ certificate already exceeds the common 1232-octet UDP payload target once DNS framing is included.
 
 ## Certificate Retrieval Amplification
 
-Certificate retrieval is an unauthenticated DNS query, and PQ certificates are much larger than classical ones, so a resolver that returns one or more PQ certificates over UDP can be abused as a traffic amplifier in response to queries with a spoofed source address. Resolvers SHOULD NOT return large PQ certificate sets over UDP to small unauthenticated requests. If the complete certificate response would exceed a conservative size, the resolver SHOULD set the TC flag and rely on the client retrying over TCP {{!RFC7766}}. When it does so, the resolver SHOULD still include the smaller classical certificate in the truncated UDP response, so that a client that does not implement PQ can proceed without a second round trip while a PQ-capable client learns that more certificates are available over TCP. Operators MAY serve a small classical certificate over UDP while requiring TCP for PQ certificate sets. This affects neither the certificate format nor the lookup name; it only makes TCP the normal retrieval path once PQ certificates are advertised.
+Certificate retrieval is an unauthenticated DNS query, and PQ certificates are much larger than classical ones, so a resolver that returns one or more PQ certificates over UDP can be abused as a traffic amplifier in response to queries with a spoofed source address. Resolvers MUST NOT send a UDP certificate response larger than the requestor's advertised EDNS(0) UDP payload size, or larger than 512 octets when no EDNS(0) UDP payload size is advertised, and SHOULD keep certificate responses below 4096 octets even when a larger value is advertised.
 
-Because the resolver withholds the PQ certificate from the truncated UDP response, a PQ-capable client MUST honor the TC flag on a certificate response and retry the certificate query over TCP. A client that ignores the TC flag would only ever observe the classical certificate over UDP and would silently fail to use PQ even against a resolver that supports it.
+Anonymized DNSCrypt relays forward certificate queries to upstream resolvers over UDP, even when the client-to-relay connection uses TCP. Therefore, a resolver that wants PQ certificate discovery to work reliably through existing relays SHOULD make the complete certificate set fit in a UDP response, instead of assuming that the client can obtain the PQ certificates through TCP fallback on the same relay path. For relay-compatible PQ deployments, resolvers SHOULD use the following UDP certificate sets:
+
+- Normal steady state: one classical certificate and one PQ certificate.
+- Rollover window: two classical certificates and two PQ certificates.
+
+Resolvers SHOULD NOT exceed the rollover certificate set over UDP.
+
+If the complete certificate response would exceed these limits, the resolver SHOULD set the TC flag and rely on the client retrying over TCP {{!RFC7766}}. When it does so, the resolver SHOULD still include the smaller classical certificate in the truncated UDP response, so that a client that does not implement PQ can proceed without a second round trip while a PQ-capable client learns that more certificates may be available over TCP. Operators MAY serve a small classical certificate over UDP while requiring TCP for larger PQ certificate sets. This affects neither the certificate format nor the lookup name.
+
+Because a resolver can withhold PQ certificates from a truncated UDP response, a PQ-capable client MUST honor the TC flag on a certificate response and retry the certificate query over TCP when TCP to the resolver is available. A client that ignores the TC flag would only ever observe the certificates present in the UDP response and could silently fail to use PQ even against a resolver that supports it.
 
 ## PQ Key Derivation
 
@@ -774,7 +786,9 @@ A resolver implementing PQ SHOULD support ticket issuance and resumption, since 
 
 ## PQ and Anonymized DNSCrypt
 
-Anonymized DNSCrypt relays forward opaque DNSCrypt queries and require no changes for PQ. A query that carries a ciphertext keeps the classical query shape with a larger `<client-pk>` field, and a resumed query uses the resume shape above; both are opaque to a relay. The relay check that a response is smaller than the query is satisfied automatically for queries that carry a ciphertext, because they are large. A resumed query is small, so a client using Anonymized DNSCrypt MUST keep enough padding on a resumed UDP query for the relay's size check to pass, or send it over TCP.
+Anonymized DNSCrypt relays forward opaque DNSCrypt queries and require no changes for PQ. A query that carries a ciphertext keeps the classical query shape with a larger `<client-pk>` field, and a resumed query uses the resume shape above; both are opaque to a relay. The relay check that an encrypted response is smaller than the query is satisfied automatically for queries that carry a ciphertext, because they are large. A resumed query is small, so a client using Anonymized DNSCrypt MUST keep enough padding on a resumed UDP query for the relay's encrypted-response size check to pass, or send it over TCP.
+
+Certificate retrieval through a relay is different: the relay forwards the certificate query to the resolver over UDP and forwards a matching certificate response back to the client. PQ-capable resolvers that want to be reachable through relays therefore SHOULD follow the UDP certificate response size recommendations in Certificate Retrieval Amplification.
 
 ## PQ Downgrade Protection
 
