@@ -18,6 +18,14 @@ author:
     email: fde@00f.net
 
 normative:
+  FIPS203:
+    title: "Module-Lattice-Based Key-Encapsulation Mechanism Standard"
+    target: "https://doi.org/10.6028/NIST.FIPS.203"
+    author:
+      - org: National Institute of Standards and Technology
+    date: 2024-08
+    seriesinfo:
+      FIPS: "203"
 
 informative:
 
@@ -624,6 +632,164 @@ When using Anonymized DNSCrypt:
 
 These operational guidelines help ensure that Anonymized DNSCrypt deployments provide the intended privacy benefits while maintaining security and preventing abuse.
 
+# Post-Quantum Key Exchange (PQDNSCrypt)
+
+The key exchange described so far relies on X25519 {{!RFC7748}}, which a sufficiently capable quantum computer would be able to break. An attacker who records DNSCrypt traffic today could therefore decrypt it once such a computer exists. This section defines the PQ extension, which performs the key exchange with a hybrid post-quantum mechanism while leaving the rest of the protocol unchanged: the certificate system, the packet framing, the authenticated encryption, the nonces, the padding philosophy, and Anonymized DNSCrypt all carry over. A DNSCrypt deployment that uses this extension is referred to as PQDNSCrypt.
+
+PQ is introduced as a new encryption system version (`<es-version>` `0x00 0x03`) inside the existing version 2 certificate format. It is not a new major protocol version, and it does not change the certificate lookup name. A resolver MAY advertise a PQ certificate alongside a classical certificate under the same provider name, and a client that does not implement PQ ignores the `<es-version>` value it does not recognize, exactly as already required.
+
+The values that PQ introduces, namely the `<es-version>`, the resume magic, the ticket parameters, and the profile identifiers, are provisional assignments used by this document and by the test vectors in Appendix 2. They are expected to be confirmed before publication.
+
+## Key Encapsulation Instead of Key Agreement
+
+Classical DNSCrypt uses a non-interactive key agreement: the resolver publishes an X25519 public key in its certificate, the client places its own X25519 public key in `<client-pk>`, and both sides compute the same shared secret. A post-quantum key encapsulation mechanism (KEM) does not offer a non-interactive key agreement, but it fits the same single-message exchange. The resolver generates a KEM key pair and publishes the public (encapsulation) key in the `<resolver-pk>` field of its certificate. The client runs the KEM encapsulation against `<resolver-pk>`, obtaining a ciphertext and a shared secret, and places the ciphertext in the `<client-pk>` field. The resolver runs the KEM decapsulation on the received ciphertext using its secret key and recovers the same shared secret.
+
+The `<client-pk>` field therefore carries a KEM ciphertext rather than a client public key, and its length is determined by the `<es-version>` of the chosen certificate. The resolver remains stateless: it derives the shared secret from a single client message, with no per-client state. Everything after the shared secret is shared with classical DNSCrypt, with the small additions described in this section.
+
+PQ uses X-Wing {{!I-D.connolly-cfrg-xwing-kem}}, a hybrid KEM that combines ML-KEM-768 {{FIPS203}} with X25519 {{!RFC7748}}. Being a hybrid, the shared secret remains secure as long as either ML-KEM-768 or X25519 is unbroken, which protects against both a future quantum break of X25519 and an unexpected weakness in ML-KEM-768. The X-Wing encapsulation key is 1216 bytes, the ciphertext is 1120 bytes, and the shared secret is 32 bytes.
+
+## PQ Certificates
+
+A PQ certificate uses the version 2 certificate format without modification. The `<es-version>` field is `0x00 0x03`, and the `<resolver-pk>` field holds the 1216-byte X-Wing encapsulation key. The `<client-magic>` retains its role as a unique 8-byte certificate selector that MUST NOT begin with seven zero bytes; because a KEM ciphertext is freshly generated for every query, `<client-magic>` is an opaque identifier and is never a truncated public key.
+
+The Ed25519 signature input is unchanged. It MUST cover `(<resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>)`, exactly as for classical certificates, so that provider signing procedures do not require a second code path. The PQ profile metadata is authenticated through the already-signed `<extensions>` field, which for a PQ certificate contains a profile extension:
+
+~~~
+<pq-profile-ext> ::= "PQD" <ext-version> <es-version> <kdf-id>
+                      <aead-id> <resolver-pk-len> <client-kex-len>
+~~~
+
+where `<ext-version>` is `0x01`, `<kdf-id>` is `0x01` for HKDF-SHA256 {{!RFC5869}}, `<aead-id>` is `0x01` for the `XChaCha20_DJB-Poly1305` construction of Appendix 1, and `<resolver-pk-len>` and `<client-kex-len>` are the encapsulation-key and ciphertext lengths as two-byte big-endian integers. A client implementing PQ MUST require this extension on a PQ certificate and MUST reject the certificate if the `<es-version>` on the wire or the field lengths disagree with the signed copies in the extension.
+
+The existing signature already provides implicit integrity for `<es-version>`, because `<resolver-pk>` is signed and its length follows from `<es-version>`: altering the version shifts the signed region and causes verification to fail, as long as distinct encryption systems use distinct `<resolver-pk>` lengths. The signed profile extension makes the binding explicit and preserves it should a future encryption system reuse an existing length.
+
+PQ certificates are approximately 1.3 KB. A certificate response that contains one therefore exceeds 512 bytes, so certificate retrieval relies on EDNS(0) {{!RFC6891}} or the existing fallback to TCP {{!RFC7766}}.
+
+## Certificate Retrieval Amplification
+
+Certificate retrieval is an unauthenticated DNS query, and PQ certificates are much larger than classical ones, so a resolver that returns one or more PQ certificates over UDP can be abused as a traffic amplifier in response to queries with a spoofed source address. Resolvers SHOULD NOT return large PQ certificate sets over UDP to small unauthenticated requests. If the complete certificate response would exceed a conservative size, the resolver SHOULD set the TC flag and rely on the client retrying over TCP {{!RFC7766}}. Operators MAY serve a small classical certificate over UDP while requiring TCP for PQ certificate sets. This affects neither the certificate format nor the lookup name; it only makes TCP the normal retrieval path once PQ certificates are advertised.
+
+## PQ Key Derivation
+
+For a PQ query, the shared secret is the 32-byte X-Wing shared secret. It is not used directly as the encryption key. Instead, both parties derive `<shared-key>` with HKDF-SHA256 {{!RFC5869}}, binding the certificate context and the ciphertext:
+
+~~~
+cert-context ::= "DNSCrypt-PQ-v1" <es-version>
+                 <protocol-minor-version> <resolver-pk>
+                 <client-magic> <serial> <ts-start> <ts-end>
+                 <extensions>
+
+<shared-key> ::= HKDF-SHA256(IKM  = <kem-ss>,
+                             salt = <es-version> <client-magic>,
+                             info = cert-context <client-kex>,
+                             L    = 32)
+~~~
+
+where `<kem-ss>` is the X-Wing shared secret and `<client-kex>` is the content of the `<client-pk>` field, that is, the X-Wing ciphertext. Binding `<es-version>` and `<client-magic>` separates keys across certificates and any future encryption system; binding `<resolver-pk>`, `<serial>`, and the validity timestamps ties the key to the exact signed certificate; binding `<client-kex>` ties it to the precise encapsulation. The derived `<shared-key>` is then used with the `XChaCha20_DJB-Poly1305` construction of Appendix 1 and the existing 24-byte nonce construction: 12 client-chosen bytes followed by 12 zero bytes for queries, and 12 client-chosen bytes followed by 12 resolver-chosen bytes for responses.
+
+## PQ Query and Response Format
+
+A PQ query uses the `<dnscrypt-query>` structure without modification; only the length of `<client-pk>` changes, to the 1120-byte X-Wing ciphertext.
+
+A PQ response uses the `<dnscrypt-response>` structure without modification on the wire, but the decrypted payload begins with a short control block ahead of the unmodified DNS response:
+
+~~~
+<pq-response-plain> ::= <control-len> <control>
+                         <resolver-response> <resolver-response-pad>
+~~~
+
+`<control-len>` is a two-byte big-endian length. When it is zero, `<control>` is absent and the DNS response begins immediately after the length. When it is nonzero, `<control>` carries PQ control data, currently a stateless resumption ticket. The response padding is computed over the whole `<control-len> <control> <resolver-response>` plaintext, so the decrypted payload keeps the usual length alignment. A PQ client removes the control block after decryption and forwards the unmodified DNS response. Because the shared secret is symmetric, the resolver needs no additional KEM operation to encrypt a response.
+
+## Padding and Transport
+
+A PQ query that carries a ciphertext includes roughly 1.1 KB in `<client-pk>`, so it is always far larger than its response. The minimum query length defined for client queries over UDP exists to prevent amplification, and that concern does not apply to a query that is already this large. A PQ query that carries a ciphertext is therefore NOT subject to the 256-byte minimum: it is padded only to the next multiple of 64 bytes. A resumed query, described below, carries a small ticket instead of a ciphertext, so it MUST use the regular minimum query length, initially 256 bytes, as in classical DNSCrypt.
+
+PQ queries and responses MUST be supported over TCP {{!RFC7766}}, and TCP is a first-class transport for PQ rather than only a fallback. A client SHOULD use a configurable UDP payload size target, 1232 bytes by default, and SHOULD use TCP when a query would exceed it. A PQ query that carries a ciphertext is approximately 1220 bytes, which fits within a single unfragmented datagram on common paths but can exceed 1232 bytes once the Anonymized DNSCrypt prefix is added; in that case the client SHOULD use TCP.
+
+## Stateless Resumption
+
+Performing a KEM decapsulation for every query is significantly more expensive than the classical X25519 operation, and because every ciphertext is distinct there is no shared-key cache to amortize it. To control this cost without keeping per-client state, PQ defines stateless resumption: after an initial query that carries a ciphertext, the resolver issues an opaque ticket that lets subsequent queries skip both the ciphertext and the decapsulation.
+
+A resolver maintains one or more server-wide ticket keys, denoted `TK`. A `TK` is shared by all processes answering for a given certificate and is rotated independently of client traffic. A resolver MAY retain a previous `TK` for a short overlap so that outstanding tickets continue to verify, but the overlap MUST NOT exceed the advertised ticket lifetime.
+
+### Issuing a Ticket
+
+After a PQ query that carries a ciphertext has been decrypted, both parties hold `<shared-key>`. They derive a resumption secret:
+
+~~~
+resume-secret ::= HKDF-SHA256(IKM  = <shared-key>,
+                              salt = <client-magic> <client-nonce>,
+                              info = "DNSCrypt-PQ-resume-secret-v1",
+                              L    = 32)
+~~~
+
+The resolver seals the resumption secret and the metadata needed to validate it later under `TK`:
+
+~~~
+ticket-plain ::= resume-secret <es-version> <client-magic>
+                 <serial> <ts-end> <ticket-expiry>
+                 <profile-extension-hash>
+
+ticket ::= <ticket-key-id> <ticket-nonce>
+           AE(TK, <ticket-nonce>, ticket-plain)
+~~~
+
+The ticket is opaque, resolver-private state: its internal format and AEAD are an implementation choice and never need to interoperate between resolvers. This document's reference construction reuses the `XChaCha20_DJB-Poly1305` AEAD of Appendix 1 with no associated data; `<ticket-key-id>` selects the ticket key, so its integrity follows from decryption failing under the wrong key, and a dedicated `TK` keeps ticket sealing separate from query traffic. The client stores the ticket together with the `resume-secret` it derived and the ticket expiry. The ticket is delivered in the response control block:
+
+~~~
+<control> ::= "PQDR" <control-version> <ticket-lifetime>
+              <ticket-len> <ticket>
+~~~
+
+A resolver SHOULD issue a ticket in the first PQ response and MAY renew it on later responses; a client SHOULD adopt the most recent valid ticket it receives. A captured ticket is of no use on its own: deriving the per-query key requires either the `resume-secret`, which only the client holds, or `TK`, which only the resolver holds.
+
+### Resuming
+
+A resumed query uses a distinct packet form, with the resume magic in place of `<client-magic>` and the ticket in place of `<client-pk>`:
+
+~~~
+<pq-resume-query> ::= <resume-magic> <ticket-len> <ticket>
+                       <client-nonce> <encrypted-query>
+~~~
+
+`<resume-magic>` is a reserved 8-byte value that MUST NOT collide with any valid `<client-magic>`, with `<resolver-magic>`, with the Anonymized DNSCrypt `<anon-magic>`, or with seven leading zero bytes. On receiving a resumed query, the resolver locates the ticket key from `<ticket-key-id>`, opens the ticket, and rejects the query if the ticket cannot be opened, is expired, or seals a `<client-magic>` or `<es-version>` that does not match an acceptable current certificate. It then derives the per-query key:
+
+~~~
+<shared-key> ::= HKDF-SHA256(IKM  = resume-secret,
+                             salt = <client-magic> <client-nonce>,
+                             info = "DNSCrypt-PQ-resumed-query-v1"
+                                    SHA-256(<ticket>),
+                             L    = 32)
+~~~
+
+The client performs the same derivation. The nonce construction is unchanged. Each resumed query thus uses a fresh key derived from its own `<client-nonce>`; clients MUST still use a distinct `<client-nonce>` for each resumed query, because repeating it would repeat both the key and the AEAD nonce. If a ticket cannot be opened or validated, the resolver MUST silently drop the query, with no response distinguishable from any other dropped query. A client that receives no response retries with a query that carries a ciphertext, obtaining a fresh ticket.
+
+### Resumption Considerations
+
+A ticket bounds forward secrecy for resumed traffic: compromise of `TK` exposes only the resumed queries whose tickets are still valid under that ticket-key epoch, and never the queries that carried a ciphertext. The ticket lifetime SHOULD be short and MUST NOT exceed the resolver certificate lifetime or the ticket-key lifetime. A ticket is also a linkable handle for its lifetime; a client that prioritizes unlinkability, in particular over Anonymized DNSCrypt, SHOULD send queries that carry a ciphertext rather than resuming. Resumed queries are replayable to the same extent as any stateless DNSCrypt query, and clients discard stale or duplicate responses with outstanding-query nonce tracking as usual.
+
+A resolver implementing PQ SHOULD support ticket issuance and resumption, since high query volumes make per-query decapsulation costly. A resolver SHOULD rate-limit decapsulation of queries that carry a ciphertext and prioritize valid resumed traffic under load.
+
+## PQ and Anonymized DNSCrypt
+
+Anonymized DNSCrypt relays forward opaque DNSCrypt queries and require no changes for PQ. A query that carries a ciphertext keeps the classical query shape with a larger `<client-pk>` field, and a resumed query uses the resume shape above; both are opaque to a relay. The relay check that a response is smaller than the query is satisfied automatically for queries that carry a ciphertext, because they are large. A resumed query is small, so a client using Anonymized DNSCrypt MUST keep enough padding on a resumed UDP query for the relay's size check to pass, or send it over TCP.
+
+## PQ Downgrade Protection
+
+An on-path attacker cannot forge a certificate, but it can drop the PQ records from an unauthenticated certificate response, leaving only a classical certificate and pushing the client onto a quantum-vulnerable exchange. A signature cannot prevent deletion. A client that has been provisioned with the knowledge that a resolver supports PQ, for example through a flag in the DNS stamp that already carries the provider name and public key, MUST NOT fall back to a classical `<es-version>` for that resolver. A client without such provisioning MAY fall back, accepting the classical risk.
+
+## PQ Security Considerations
+
+Confidentiality against a future quantum adversary holds as long as either ML-KEM-768 or X25519 is unbroken, because X-Wing is a hybrid.
+
+Resolver authentication is as in classical DNSCrypt: the client encapsulates to a signed encapsulation key, and only the holder of the corresponding secret key can recover the shared secret and produce an authenticated response.
+
+The KEM ciphertext is not separately authenticated and does not need to be. X-Wing, through ML-KEM-768, uses implicit rejection: a malformed but correctly sized ciphertext yields a pseudo-random shared secret rather than an error, so a tampered ciphertext produces a different key and authentication fails. A resolver MUST drop such a query exactly as it drops any query that fails authentication, and the outcome on the wire MUST NOT reveal, through a distinct response, error, or timing, whether decapsulation, key derivation, or authentication failed; otherwise the resolver becomes a decapsulation oracle. KEM and X25519 operations SHOULD be constant-time with respect to secret data.
+
+Forward secrecy for queries that carry a ciphertext has the same granularity as classical resolver-key rotation, since the resolver KEM key is short-term and the client's encapsulation randomness is fresh per query. Resumed queries inherit the shorter of the ticket lifetime and the ticket-key lifetime.
+
+Nonce uniqueness is required as in classical DNSCrypt. For queries that carry a ciphertext, each has an independent key, so cross-query collisions cannot occur; for resumed queries the per-query key derivation uses `<client-nonce>`, so clients MUST keep it unique for the lifetime of a ticket.
+
 # IANA Considerations
 
 This document has no IANA actions.
@@ -729,3 +895,280 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 - `<sk>`: sender's secret key
 - `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
 - `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
+
+# Appendix 2: PQ Test Vector Structure
+
+This appendix fixes the exact field order and byte order for PQ. Long cryptographic outputs, namely KEM keys and ciphertexts, the Ed25519 signature, AEAD outputs, and HKDF outputs, are left as placeholders to be filled in by a reference implementation. Everything structural is pinned here, so that two implementations cannot disagree about layout even before the hex values exist.
+
+All integers are big-endian. Every AEAD operation is `XChaCha20_DJB-Poly1305` as defined in Appendix 1, with the 16-byte tag prepended to the ciphertext. Every key derivation is HKDF-SHA256 {{!RFC5869}}. Placeholders are written `[name: N bytes]`; the concrete values they stand for appear in the Generated Values subsection at the end of this appendix.
+
+## Provisional Assignments
+
+The following values are the provisional assignments used by these vectors. They are normative for the vectors but expected to be confirmed before publication.
+
+| Item                       | Value                                  |
+| -------------------------- | -------------------------------------- |
+| `<es-version>` (X-Wing)    | `0x00 0x03`                            |
+| `<resume-magic>`           | `50 51 52 65 73 75 6d 65` ("PQResume") |
+| `<kdf-id>`                 | `0x01` (HKDF-SHA256)                   |
+| `<aead-id>`                | `0x01` (XChaCha20_DJB-Poly1305)        |
+| ticket AEAD                | XChaCha20_DJB-Poly1305, 24-byte nonce  |
+| `<ticket-key-id>`          | 4 bytes                                |
+| `<ticket-nonce>`           | 24 bytes                               |
+| `<ticket-expiry>`          | 4-byte Unix timestamp                  |
+| `<ticket-lifetime>`        | 4-byte seconds                         |
+| `<profile-extension-hash>` | `SHA-256(<extensions>)`, 32 bytes      |
+
+## Pinned Inputs
+
+All randomness is fixed so the vectors are reproducible. Short values are given concretely; values produced by a primitive are placeholders.
+
+| Input                                  | Length | Value                       |
+| -------------------------------------- | ------ | --------------------------- |
+| provider Ed25519 signing seed          | 32     | `00 01 02 ... 1f`           |
+| provider Ed25519 public key            | 32     | `[provider-pk: 32 bytes]`   |
+| resolver X-Wing secret seed            | 32     | `20 21 22 ... 3f`           |
+| resolver X-Wing public key             | 1216   | `[resolver-pk: 1216 bytes]` |
+| client X-Wing encapsulation seed       | 64     | `40 41 42 ... 7f`           |
+| `<es-version>`                         | 2      | `00 03`                     |
+| `<protocol-minor-version>`             | 2      | `00 00`                     |
+| `<client-magic>`                       | 8      | `a1 b2 c3 d4 e5 f6 07 18`   |
+| `<serial>`                             | 4      | `00 00 00 01`               |
+| `<ts-start>`                           | 4      | `68 00 00 00`               |
+| `<ts-end>`                             | 4      | `68 01 51 80`               |
+| query `<client-nonce>`                 | 12     | `b0 b1 b2 ... bb`           |
+| response `<resolver-nonce>`            | 12     | `c0 c1 c2 ... cb`           |
+| ticket key `TK`                        | 32     | `80 81 82 ... 9f`           |
+| `<ticket-key-id>`                      | 4      | `00 00 00 01`               |
+| `<ticket-nonce>`                       | 24     | `d0 d1 d2 ... e7`           |
+| `<ticket-expiry>`                      | 4      | `68 00 02 58`               |
+| `<ticket-lifetime>`                    | 4      | `00 00 01 2c`               |
+| resumed `<client-nonce>`               | 12     | `f0 f1 f2 ... fb`           |
+| resumed `<resolver-nonce>`             | 12     | `10 11 12 ... 1b`           |
+| example DNS query (A? www.example.com) | 33     | `[dns-query: 33 bytes]`     |
+| example DNS response                   | var    | `[dns-response]`            |
+
+## Profile Extension and Signature Input
+
+The PQ profile extension is the entire `<extensions>` field in this revision:
+
+~~~
+pq-profile-ext =
+    "PQD"             50 51 44
+    ext-version       01
+    es-version        00 03
+    kdf-id            01            (HKDF-SHA256)
+    aead-id           01            (XChaCha20_DJB-Poly1305)
+    resolver-pk-len   04 c0         (1216)
+    client-kex-len    04 60         (1120)
+                                    -> 12 bytes total
+~~~
+
+The Ed25519 signature is computed over the existing field set, unchanged:
+
+~~~
+sig-input = resolver-pk (1216) || client-magic (8) || serial (4)
+            || ts-start (4) || ts-end (4) || extensions (12)
+          -> 1248 bytes
+signature = Ed25519.Sign(provider-seed, sig-input)  = [signature: 64 bytes]
+~~~
+
+The full certificate (92 fixed bytes + 1216-byte resolver key + 12-byte extensions = 1320 bytes):
+
+| Offset | Field                      | Length | Value                                 |
+| ------ | -------------------------- | ------ | ------------------------------------- |
+| 0      | `<cert-magic>`             | 4      | `44 4e 53 43`                         |
+| 4      | `<es-version>`             | 2      | `00 03`                               |
+| 6      | `<protocol-minor-version>` | 2      | `00 00`                               |
+| 8      | `<signature>`              | 64     | `[signature: 64 bytes]`               |
+| 72     | `<resolver-pk>`            | 1216   | `[resolver-pk: 1216 bytes]`           |
+| 1288   | `<client-magic>`           | 8      | `a1 b2 c3 d4 e5 f6 07 18`             |
+| 1296   | `<serial>`                 | 4      | `00 00 00 01`                         |
+| 1300   | `<ts-start>`               | 4      | `68 00 00 00`                         |
+| 1304   | `<ts-end>`                 | 4      | `68 01 51 80`                         |
+| 1308   | `<extensions>`             | 12     | `50 51 44 01 00 03 01 01 04 c0 04 60` |
+
+## Full X-Wing Query
+
+~~~
+(resolver-pk, resolver-sk) = X-Wing.GenerateKeyPairDerand(resolver-seed)
+(ct, kem-ss)               = X-Wing.EncapsulateDerand(resolver-pk, eseed)
+    ct      = [ct: 1120 bytes]
+    kem-ss  = [kem-ss: 32 bytes]
+
+cert-context = "DNSCrypt-PQ-v1"            (14 bytes)
+            || es-version (00 03) || protocol-minor-version (00 00)
+            || resolver-pk (1216) || client-magic (8)
+            || serial (4) || ts-start (4) || ts-end (4)
+            || extensions (12)
+
+shared-key = HKDF-SHA256(
+                 IKM  = kem-ss,
+                 salt = es-version || client-magic
+                        (10 bytes: 00 03 a1 b2 c3 d4 e5 f6 07 18),
+                 info = cert-context || ct,
+                 L    = 32)                  = [shared-key: 32 bytes]
+
+query-nonce = client-nonce || (12 * 00)      (24 bytes)
+plaintext   = dns-query (33) || 80 || (30 * 00)   (padded to 64; ISO/IEC 7816-4)
+encrypted-query = tag (16) || ciphertext (64)     = [enc-query: 80 bytes]
+~~~
+
+Query on the wire (1220 bytes):
+
+| Offset | Field                | Length | Value                     |
+| ------ | -------------------- | ------ | ------------------------- |
+| 0      | `<client-magic>`     | 8      | `a1 b2 c3 d4 e5 f6 07 18` |
+| 8      | `<client-pk>` = `ct` | 1120   | `[ct: 1120 bytes]`        |
+| 1128   | `<client-nonce>`     | 12     | `b0 b1 ... bb`            |
+| 1140   | `<encrypted-query>`  | 80     | `[enc-query: 80 bytes]`   |
+
+## Full Response and Ticket Issuance
+
+~~~
+resume-secret = HKDF-SHA256(
+                    IKM  = shared-key,
+                    salt = client-magic || client-nonce  (20 bytes),
+                    info = "DNSCrypt-PQ-resume-secret-v1",
+                    L    = 32)               = [resume-secret: 32 bytes]
+
+profile-extension-hash = SHA-256(extensions) = [peh: 32 bytes]
+
+ticket-plain = resume-secret (32) || es-version (2) || client-magic (8)
+            || serial (4) || ts-end (4) || ticket-expiry (4)
+            || profile-extension-hash (32)   (86 bytes)
+
+ticket = ticket-key-id (4) || ticket-nonce (24)
+      || AE(TK, ticket-nonce, ticket-plain)
+         where AE output = tag (16) || ciphertext (86)
+      -> 4 + 24 + 102 = 130 bytes            = [ticket: 130 bytes]
+
+control = "PQDR" (50 51 44 52) || control-version (01)
+       || ticket-lifetime (00 00 01 2c) || ticket-len (00 82)
+       || ticket (130)                       (141 bytes)
+
+pq-response-plain = control-len (00 8d) || control (141)
+                  || dns-response || pad-to-64
+
+response-nonce = client-nonce || resolver-nonce   (24 bytes)
+encrypted-response = tag (16) || ciphertext       = [enc-response]
+~~~
+
+Response on the wire:
+
+| Field                  | Length | Value                                 |
+| ---------------------- | ------ | ------------------------------------- |
+| `<resolver-magic>`     | 8      | `72 36 66 6e 76 57 6a 38`             |
+| `<nonce>`              | 24     | `b0..bb` (client) `c0..cb` (resolver) |
+| `<encrypted-response>` | var    | `[enc-response]`                      |
+
+## Resumed Query and Response
+
+~~~
+resumed shared-key = HKDF-SHA256(
+                         IKM  = resume-secret,
+                         salt = client-magic || resumed-client-nonce (20 bytes),
+                         info = "DNSCrypt-PQ-resumed-query-v1" || SHA-256(ticket),
+                         L    = 32)          = [resumed-shared-key: 32 bytes]
+
+query-nonce = resumed-client-nonce || (12 * 00)   (24 bytes)
+plaintext   = dns-query || 80 || pad         (padded to 256: resumed floor)
+encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
+~~~
+
+Resumed query on the wire (424 bytes):
+
+| Offset | Field               | Length | Value                     |
+| ------ | ------------------- | ------ | ------------------------- |
+| 0      | `<resume-magic>`    | 8      | `50 51 52 65 73 75 6d 65` |
+| 8      | `<ticket-len>`      | 2      | `00 82` (130)             |
+| 10     | `<ticket>`          | 130    | `[ticket: 130 bytes]`     |
+| 140    | `<client-nonce>`    | 12     | `f0 f1 ... fb`            |
+| 152    | `<encrypted-query>` | 272    | `[enc-query: 272 bytes]`  |
+
+The resumed response reuses `resumed shared-key` with nonce `resumed-client-nonce || resumed-resolver-nonce`. If the resolver issues no new ticket, the control block is empty (`control-len = 00 00`).
+
+## Negative Cases
+
+These vectors pin the required failure behavior. None of them produce a distinguishable on-the-wire signal beyond "no response" or "certificate rejected".
+
+1. Bad profile-extension length: `resolver-pk-len` or `client-kex-len` in the extension disagrees with the actual field length, or `pq-profile-ext` is not 12 bytes. The client MUST reject the certificate.
+2. `<es-version>` mismatch: the on-the-wire `<es-version>` differs from the copy inside the signed extension. The client MUST reject the certificate.
+3. Corrupted ticket AEAD: one byte of the sealed region of `<ticket>` in a resumed query is flipped. AEAD opening fails, and the resolver MUST silently drop the query.
+4. Expired or rotated ticket: `<ticket-expiry>` is in the past, or `<ticket-key-id>` names a `TK` that has been rotated out. The resolver MUST silently drop the query; the client re-handshakes with a query that carries a ciphertext.
+5. Ticket context mismatch: the `<client-magic>` or `<es-version>` sealed in the ticket does not match the resumption context. The resolver MUST silently drop the query.
+6. Malformed KEM ciphertext: one byte of `<client-pk>` in a query that carries a ciphertext is flipped. X-Wing implicit rejection yields a different shared secret, authentication fails, and the resolver MUST silently drop the query, with no distinct error or timing.
+7. Repeated nonce (client obligation): reusing a `<client-nonce>` under one ticket reuses both the derived key and the AEAD nonce; this is a client MUST NOT. A stateless resolver cannot detect it, so there is no wire vector; it is listed to make the obligation explicit.
+8. Under-padded resumed query: a resumed UDP query padded below the 256-byte floor decrypts correctly but violates the anti-amplification rule, and an Anonymized DNSCrypt relay MAY drop it on the response-size check.
+
+## Generated Values
+
+The values below were produced by a reference generator from the pinned inputs above, and are reproducible by any conformant implementation. Values up to 141 bytes are given in full; longer artifacts are pinned by their SHA-256 digest. The generator self-checks against the HChaCha20 known-answer test of Appendix 1 and the official X-Wing known-answer test, and verifies that X-Wing decapsulation recovers the encapsulated secret.
+
+~~~
+provider-ed25519-pk (32):
+  03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+resolver-pk (1216, SHA-256):
+  a1f324bc0701f1234fbba7b11901023b3644f3bb8c6eb4ee4368d7e859eb6228
+client-kex / ct (1120, SHA-256):
+  f6bf3f238e83f24cd444f2887e8fd32d630e07dbe6ca2f2b403aaf5333030c48
+kem-ss (32):
+  8dac8602d4ce5e27e81335b54b25fdcaea86e56613214ee0522db4a5e0a38d50
+shared-key (32):
+  e6d4ab9cffc9b49e2a64d80d7eb2dde280f806b89e834d596ad385b1dd75e9ef
+signature (64):
+  811bab04e2e70c9d946296a93b4028d7c7bb84f32f597d3cf8aba29edc1b6b97
+  4acc99dd00ec62cdcae477433d10bff20e1c432e1011ad8ad5324f68a294750c
+
+dns-query (33):
+  12340100000100000000000003777777076578616d706c6503636f6d00000100
+  01
+dns-response (49):
+  12348180000100010000000003777777076578616d706c6503636f6d00000100
+  01c00c0001000100000e1000045db8d822
+padded query plaintext (64):
+  12340100000100000000000003777777076578616d706c6503636f6d00000100
+  0180000000000000000000000000000000000000000000000000000000000000
+encrypted-query (80):
+  a571a3850074e75424ec9f9f7680cf3c83c8292db1ecff0bc3b92cd536d06795
+  63e0e23ab7861072fcc58eabf6e02b509571574dfda8541448a23d4de134fb84
+  39ac7e96642983aebfe4b41d0b64aef7
+full query wire (1220, SHA-256):
+  5b6076f99aa7162643d18662a075a3628db06d06f38604c756d9e7fb88430fbf
+
+resume-secret (32):
+  df158804e3f8ddf383ff7c9d3128491b29437a894936ec72c68aed8a9553272b
+profile-extension-hash = SHA-256(extensions) (32):
+  fab3bf4996c5d2fdfc330ec958d0a5b63624bf3fbdc0fedfa9d94b0941a4060c
+ticket-plain (86):
+  df158804e3f8ddf383ff7c9d3128491b29437a894936ec72c68aed8a9553272b
+  0003a1b2c3d4e5f60718000000016801518068000258fab3bf4996c5d2fdfc33
+  0ec958d0a5b63624bf3fbdc0fedfa9d94b0941a4060c
+ticket (130):
+  00000001d0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e72ddc2b25
+  9e2a18bddaf913e85cdda9da0a0eeb3deb8681672ea258f37544c66c4a4bb8c3
+  4a8c11b323c99cf3d2ebf4f739890f6a5b89c31f9bc535de734dc62435ca9545
+  ad2ab00eb2a6c7f37c802443581c6218dff9541f7500140c90078514d0729012
+  e13e
+control (141):
+  50514452010000012c008200000001d0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0
+  e1e2e3e4e5e6e72ddc2b259e2a18bddaf913e85cdda9da0a0eeb3deb8681672e
+  a258f37544c66c4a4bb8c34a8c11b323c99cf3d2ebf4f739890f6a5b89c31f9b
+  c535de734dc62435ca9545ad2ab00eb2a6c7f37c802443581c6218dff9541f75
+  00140c90078514d0729012e13e
+response plaintext, padded to 256 (256, SHA-256):
+  9fd55648430ea0ace2f59c68e42297c25328921b08398db71db90aed278aa593
+full response wire (304, SHA-256):
+  3fa8782a7943fa47502f3dc875650013a5544e95952812113a576f84851e33ee
+
+sha256(ticket) (32):
+  171a5f3818d300e241fcdf4d26a978344461c05f62db2ab70098ed506b3ac41b
+resumed shared-key (32):
+  3ca2e28bde48ee2d00f65153f8e61331832b9498e4fdf495991f01fb301abc21
+resumed encrypted-query (272, SHA-256):
+  8a4cacb149a6311f844dce2bbb3c6887e85518cc988714d32f8c06252f5e1c6d
+resume query wire (424, SHA-256):
+  9c36901ee1c6528e19c2300c53d8ddc1ab9b5127a5fb4c7b038ec285e38f17ab
+resume response wire, no new ticket (112, SHA-256):
+  8cb9b03e349e7bcd1df4f40ce94251aeb99b6530bb88deacba29b635c165c1c4
+~~~
