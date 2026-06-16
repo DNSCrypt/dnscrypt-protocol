@@ -638,7 +638,7 @@ The key exchange described so far relies on X25519 {{!RFC7748}}, which a suffici
 
 PQ is introduced as a new encryption system version (`<es-version>` `0x00 0x03`) inside the existing version 2 certificate format. It is not a new major protocol version, and it does not change the certificate lookup name. A resolver MAY advertise a PQ certificate alongside a classical certificate under the same provider name, and a client that does not implement PQ ignores the `<es-version>` value it does not recognize, exactly as already required.
 
-The values that PQ introduces, namely the `<es-version>`, the resume magic, the ticket parameters, and the profile identifiers, are provisional assignments used by this document and by the test vectors in Appendix 2. They are expected to be confirmed before publication.
+The values that PQ introduces, namely the `<es-version>`, the resume magic, the ticket parameters, and the profile identifiers, are provisional assignments used by this document and by the test vectors in Appendix 3. They are expected to be confirmed before publication.
 
 ## Key Encapsulation Instead of Key Agreement
 
@@ -874,16 +874,19 @@ All that needs to be done is:
 
 XChaCha20 is a stream cipher and offers no integrity guarantees without being combined with a MAC algorithm (e.g. Poly1305).
 
-`XChaCha20_DJB-Poly1305` adds an authentication tag to the ciphertext encrypted with `XChaCha20_DJB`.
+`XChaCha20_DJB-Poly1305` adds an authentication tag to the ciphertext encrypted with `XChaCha20_DJB`. It is the combined mode used by the NaCl `secretbox` and `crypto_box` constructions, instantiated with `XChaCha20_DJB`. The one-time Poly1305 key is taken from the start of the keystream, and the message is encrypted with the keystream that immediately follows it. No separate keystream block is reserved for the Poly1305 key, so this layout differs from the AEAD of {{!RFC8439}}, where the message starts at block counter 1 and the rest of the first keystream block is discarded.
 
-The Poly1305 key is computed as in {{!RFC8439}}, by encrypting an empty block.
-
-Finally, the output of the Poly1305 function is prepended to the ciphertext:
+Concretely, for a key `<k>` and a message `<m>`:
 
 - `<k>`: encryption key
 - `<m>`: message to encrypt
-- `<ct>`: `XChaCha20_DJB(<k>, <m>)`
-- `XChaCha20_DJB-Poly1305(<k>, <m>)`: `Poly1305(<ct>) || <ct>`
+- `<keystream>`: the `XChaCha20_DJB` keystream produced from `<k>` and the 24-byte nonce, starting at block counter 0.
+- `<poly-key>`: `<keystream>[0..32]`, the one-time Poly1305 key. These bytes are not transmitted.
+- `<ct>`: `<m>` XOR `<keystream>[32..32 + length(<m>)]`, the ciphertext.
+- `<tag>`: `Poly1305(<poly-key>, <ct>)`, the 16-byte tag.
+- `XChaCha20_DJB-Poly1305(<k>, <m>)`: `<tag> || <ct>`
+
+Equivalently, `XChaCha20_DJB` is run over the buffer `<zero32> || <m>`, where `<zero32>` is 32 NUL bytes, starting at block counter 0; the first 32 output bytes are taken as `<poly-key>`, and the remaining `length(<m>)` bytes are `<ct>`.
 
 ## The Box-XChaChaPoly Algorithm
 
@@ -893,10 +896,206 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 - `<m>`: message to encrypt
 - `<pk>`: recipient's public key
 - `<sk>`: sender's secret key
-- `<sk'>`: `HChaCha20(X25519(<pk>, <sk>))`
+- `<zero16>`: 16 NUL bytes
+- `<sk'>`: `HChaCha20(X25519(<pk>, <sk>), <zero16>)`, the shared key
 - `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
 
-# Appendix 2: PQ Test Vector Structure
+# Appendix 2: DNSCrypt Test Vectors
+
+This appendix provides complete, reproducible test vectors for the regular DNSCrypt protocol with the `Box-XChaChaPoly` encryption system of Appendix 1, that is, `<es-version>` `0x00 0x02`: X25519 key exchange, the `XChaCha20_DJB-Poly1305` AEAD, and Ed25519 certificate signatures.
+
+All randomness is pinned so the vectors are reproducible. Every value is given in full as a hexadecimal string, wrapped to 32 bytes per line. The field and byte order of each artifact matches the Protocol Components and Certificates sections. These vectors were cross-checked byte for byte against the `dnscrypt-proxy` reference implementation.
+
+## Pinned Inputs
+
+The secret keys below are the raw 32-byte X25519 scalars as stored by an implementation; X25519 clamps them internally. The provider signing key is given as its 32-byte Ed25519 seed.
+
+| Input                         | Length | Value                     |
+| ----------------------------- | ------ | ------------------------- |
+| provider Ed25519 signing seed | 32     | `00 01 02 ... 1f`         |
+| resolver X25519 secret key    | 32     | `20 21 22 ... 3f`         |
+| client X25519 secret key      | 32     | `40 41 42 ... 5f`         |
+| `<client-magic>`              | 8      | `b1 b2 b3 b4 b5 b6 b7 b8` |
+| `<es-version>`                | 2      | `00 02`                   |
+| `<protocol-minor-version>`    | 2      | `00 00`                   |
+| `<serial>`                    | 4      | `00 00 00 01`             |
+| `<ts-start>`                  | 4      | `68 00 00 00`             |
+| `<ts-end>`                    | 4      | `68 01 51 80`             |
+| query `<client-nonce>`        | 12     | `a0 a1 a2 ... ab`         |
+| response `<resolver-nonce>`   | 12     | `c0 c1 c2 ... cb`         |
+| `<extensions>`                | 0      | empty                     |
+
+`<client-magic>` is chosen by the resolver and carried in the certificate; the client copies it verbatim into the first 8 bytes of every query. `<ts-start>` and `<ts-end>` span exactly 86400 seconds (a one-day validity window). The fixed protocol constants are `<cert-magic>` = `44 4e 53 43`, `<es-version>` = `00 02`, and `<resolver-magic>` = `72 36 66 6e 76 57 6a 38`.
+
+The example DNS messages are a query and its answer for `www.example.com`:
+
+~~~
+dns-query (33 bytes), id 0x1234, RD set, A? www.example.com IN:
+  12340100000100000000000003777777076578616d706c6503636f6d00000100
+  01
+dns-response (49 bytes), A 93.184.216.34, TTL 3600:
+  12348180000100010000000003777777076578616d706c6503636f6d00000100
+  01c00c0001000100000e1000045db8d822
+~~~
+
+## Public Keys and Shared Key
+
+~~~
+provider-ed25519-pk = Ed25519 public key for the signing seed:
+  03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+resolver-pk = X25519 base-point mult of the resolver secret key:
+  358072d6365880d1aeea329adf9121383851ed21a28e3b75e965d0d2cd166254
+client-pk = X25519 base-point mult of the client secret key:
+  79a631eede1bf9c98f12032cdeadd0e7a079398fc786b88cc846ec89af85a51a
+
+x25519-shared-point = X25519(client-sk, resolver-pk)
+                    = X25519(resolver-sk, client-pk):
+  04c304fb1ca83cee75e206344231f33797e07d9929db670994b7c6fbeb1dc255
+shared-key = HChaCha20(key = x25519-shared-point, in = 16 NUL bytes):
+  335d32f2d65e6623cbbd05b6539c9575fee16cb5405fe839ab4bd291fdf13262
+~~~
+
+The same `shared-key` is computed by the client from `(client-sk, resolver-pk)` and by the resolver from `(resolver-sk, client-pk)`.
+
+## Certificate
+
+The signature covers `<resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>`, with `<extensions>` empty in this protocol version:
+
+~~~
+signed input (52 bytes):
+  358072d6365880d1aeea329adf9121383851ed21a28e3b75e965d0d2cd166254
+  b1b2b3b4b5b6b7b8000000016800000068015180
+signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
+  3a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aabc173a6a49b7a49ca
+  55362a6c5dec47657cf515e9f99382a316dfecd964b94d1c4659cac45961400c
+~~~
+
+The full certificate, as carried in a `TXT` record, is 124 bytes:
+
+| Offset | Field                      | Length | Value                     |
+| ------ | -------------------------- | ------ | ------------------------- |
+| 0      | `<cert-magic>`             | 4      | `44 4e 53 43`             |
+| 4      | `<es-version>`             | 2      | `00 02`                   |
+| 6      | `<protocol-minor-version>` | 2      | `00 00`                   |
+| 8      | `<signature>`              | 64     | `3a 57 ... 40 0c`         |
+| 72     | `<resolver-pk>`            | 32     | `35 80 ... 62 54`         |
+| 104    | `<client-magic>`           | 8      | `b1 b2 b3 b4 b5 b6 b7 b8` |
+| 112    | `<serial>`                 | 4      | `00 00 00 01`             |
+| 116    | `<ts-start>`               | 4      | `68 00 00 00`             |
+| 120    | `<ts-end>`                 | 4      | `68 01 51 80`             |
+
+~~~
+certificate (124 bytes):
+  444e5343000200003a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aab
+  c173a6a49b7a49ca55362a6c5dec47657cf515e9f99382a316dfecd964b94d1c
+  4659cac45961400c358072d6365880d1aeea329adf9121383851ed21a28e3b75
+  e965d0d2cd166254b1b2b3b4b5b6b7b8000000016800000068015180
+~~~
+
+## Client Query (UDP)
+
+The plaintext is the DNS query padded with ISO/IEC 7816-4 to `<min-query-len>` = 256 bytes: one `0x80` byte followed by NUL bytes. The 24-byte AEAD nonce is the 12-byte client nonce followed by 12 NUL bytes.
+
+~~~
+padded query plaintext (256 bytes):
+  12340100000100000000000003777777076578616d706c6503636f6d00000100
+  0180000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+  0000000000000000000000000000000000000000000000000000000000000000
+query AEAD nonce (24 bytes):
+  a0a1a2a3a4a5a6a7a8a9aaab000000000000000000000000
+encrypted-query = tag (16) || ciphertext (256) (272 bytes):
+  2dae527c26386d5cd4e61152db6dd1812ff6aaf7644fc122afc70b1b580b18f1
+  0fbc26577abc759152cde31cd0afc5c5f452f8654815469723300819bed5a120
+  15c044b94d63ec1f79e48a23968e437feb8bb8720cf4e60a0499746190c8b3eb
+  83aeb0d858df77794270b861f86644502be0d22d6f0b2b132e9ca68538300c8d
+  68b8e3c48190cbbf96d602f38dfc3b4d642016ceeaf4bc2c2ded9483b9f9d4ee
+  d703a0bebc252add8822d4b9152e30670bcde9ea75a0e3e67ea576e9b1262bb2
+  b25b4f9432311b75a2238b34bf4f868da182b85dccb1762a703bba31d04d77b4
+  c57ec9039663959793677588b3a74ae409b0f16374dd64cbd6d47d801725b014
+  ce9ddaf6f1aa30688c8efcbfde1d5d1d
+~~~
+
+Query on the wire (324 bytes):
+
+| Offset | Field               | Length | Value                     |
+| ------ | ------------------- | ------ | ------------------------- |
+| 0      | `<client-magic>`    | 8      | `b1 b2 b3 b4 b5 b6 b7 b8` |
+| 8      | `<client-pk>`       | 32     | `79 a6 ... a5 1a`         |
+| 40     | `<client-nonce>`    | 12     | `a0 a1 ... ab`            |
+| 52     | `<encrypted-query>` | 272    | `2d ae ... d5 1d`         |
+
+~~~
+full query wire (324 bytes):
+  b1b2b3b4b5b6b7b879a631eede1bf9c98f12032cdeadd0e7a079398fc786b88c
+  c846ec89af85a51aa0a1a2a3a4a5a6a7a8a9aaab2dae527c26386d5cd4e61152
+  db6dd1812ff6aaf7644fc122afc70b1b580b18f10fbc26577abc759152cde31c
+  d0afc5c5f452f8654815469723300819bed5a12015c044b94d63ec1f79e48a23
+  968e437feb8bb8720cf4e60a0499746190c8b3eb83aeb0d858df77794270b861
+  f86644502be0d22d6f0b2b132e9ca68538300c8d68b8e3c48190cbbf96d602f3
+  8dfc3b4d642016ceeaf4bc2c2ded9483b9f9d4eed703a0bebc252add8822d4b9
+  152e30670bcde9ea75a0e3e67ea576e9b1262bb2b25b4f9432311b75a2238b34
+  bf4f868da182b85dccb1762a703bba31d04d77b4c57ec9039663959793677588
+  b3a74ae409b0f16374dd64cbd6d47d801725b014ce9ddaf6f1aa30688c8efcbf
+  de1d5d1d
+~~~
+
+## Server Response (UDP)
+
+The plaintext is the DNS response padded with ISO/IEC 7816-4 to 64 bytes. The 24-byte AEAD nonce is the client nonce followed by the resolver nonce.
+
+~~~
+padded response plaintext (64 bytes):
+  12348180000100010000000003777777076578616d706c6503636f6d00000100
+  01c00c0001000100000e1000045db8d822800000000000000000000000000000
+response AEAD nonce (24 bytes):
+  a0a1a2a3a4a5a6a7a8a9aaabc0c1c2c3c4c5c6c7c8c9cacb
+encrypted-response = tag (16) || ciphertext (64) (80 bytes):
+  f2670995c6d37c2f8d2016029dd5970b893de83c02815ece9b48d9fd0b0dca87
+  41674142fbd8e12c1120b111f366326aa71c89823a2931ac5c860dad49685ed6
+  cc22cc13e829d2e51d1c00ea64d1d39d
+~~~
+
+Response on the wire (112 bytes):
+
+| Offset | Field                  | Length | Value                                 |
+| ------ | ---------------------- | ------ | ------------------------------------- |
+| 0      | `<resolver-magic>`     | 8      | `72 36 66 6e 76 57 6a 38`             |
+| 8      | `<nonce>`              | 24     | `a0..ab` (client) `c0..cb` (resolver) |
+| 32     | `<encrypted-response>` | 80     | `f2 67 ... d3 9d`                     |
+
+~~~
+full response wire (112 bytes):
+  7236666e76576a38a0a1a2a3a4a5a6a7a8a9aaabc0c1c2c3c4c5c6c7c8c9cacb
+  f2670995c6d37c2f8d2016029dd5970b893de83c02815ece9b48d9fd0b0dca87
+  41674142fbd8e12c1120b111f366326aa71c89823a2931ac5c860dad49685ed6
+  cc22cc13e829d2e51d1c00ea64d1d39d
+~~~
+
+## Padding and Transport Notes
+
+The vectors fix the padded plaintext lengths so they are reproducible:
+
+- The query plaintext is padded to `<min-query-len>` = 256 bytes, the minimum permitted length for a client query inclusive of padding and a multiple of 64. An implementation MAY use a larger `<min-query-len>` that is also a multiple of 64; `dnscrypt-proxy` defaults to 512.
+- The response plaintext is padded to the smallest multiple of 64 that holds the response plus at least one padding byte, here 64 bytes. The exact response padding length is otherwise an implementation choice, subject to the response being no larger than the query over UDP.
+- Over TCP the encryption is identical, but each packet is prefixed with a two-byte big-endian length, and the query padding length is chosen at random as described in Query Processing.
+
+## Negative Cases
+
+These vectors pin the required failure behavior. None of them produce a distinguishable on-the-wire signal beyond "no response" or "certificate rejected".
+
+1. Tampered ciphertext: flipping any byte of `<encrypted-query>` or `<encrypted-response>` makes Poly1305 verification fail. The receiver MUST drop the packet.
+2. Bad padding: after a successful decryption, the plaintext MUST end with a `0x80` byte followed by zero or more NUL bytes. A plaintext that does not MUST be rejected.
+3. Wrong `<client-magic>`: a query whose first 8 bytes do not match the `<client-magic>` of any certificate the resolver currently serves is not a DNSCrypt query for this resolver. The resolver MUST NOT treat it as one.
+4. Response nonce mismatch: the client MUST verify that the `<client-nonce>` prefix (first 12 bytes) of the response nonce matches an outstanding query, and otherwise drop the response.
+5. Weak public key: if the X25519 shared point is the all-zero value, the public key is of low order and the shared key MUST be rejected.
+6. Certificate outside its validity window: a certificate whose `<ts-start>`/`<ts-end>` does not include the current time MUST NOT be used, and among valid certificates the client picks the highest `<serial>`.
+
+# Appendix 3: PQ Test Vector Structure
 
 This appendix fixes the exact field order and byte order for PQ. Long cryptographic outputs, namely KEM keys and ciphertexts, the Ed25519 signature, AEAD outputs, and HKDF outputs, are left as placeholders to be filled in by a reference implementation. Everything structural is pinned here, so that two implementations cannot disagree about layout even before the hex values exist.
 
