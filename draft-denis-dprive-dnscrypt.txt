@@ -1243,11 +1243,22 @@ Table of Contents
    address.  Resolvers SHOULD NOT return large PQ certificate sets over
    UDP to small unauthenticated requests.  If the complete certificate
    response would exceed a conservative size, the resolver SHOULD set
-   the TC flag and rely on the client retrying over TCP [RFC7766].
+   the TC flag and rely on the client retrying over TCP [RFC7766].  When
+   it does so, the resolver SHOULD still include the smaller classical
+   certificate in the truncated UDP response, so that a client that does
+   not implement PQ can proceed without a second round trip while a PQ-
+   capable client learns that more certificates are available over TCP.
    Operators MAY serve a small classical certificate over UDP while
    requiring TCP for PQ certificate sets.  This affects neither the
    certificate format nor the lookup name; it only makes TCP the normal
    retrieval path once PQ certificates are advertised.
+
+   Because the resolver withholds the PQ certificate from the truncated
+   UDP response, a PQ-capable client MUST honor the TC flag on a
+   certificate response and retry the certificate query over TCP.  A
+   client that ignores the TC flag would only ever observe the classical
+   certificate over UDP and would silently fail to use PQ even against a
+   resolver that supports it.
 
 10.4.  PQ Key Derivation
 
