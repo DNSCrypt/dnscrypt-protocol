@@ -1441,9 +1441,12 @@ Table of Contents
    DNSCrypt <anon-magic>, or with seven leading zero bytes.  On
    receiving a resumed query, the resolver locates the ticket key from
    <ticket-key-id>, opens the ticket, and rejects the query if the
-   ticket cannot be opened, is expired, or seals a <client-magic> or
-   <es-version> that does not match an acceptable current certificate.
-   It then derives the per-query key:
+   ticket cannot be opened, is expired, or if any sealed certificate-
+   context field does not match an acceptable current certificate.  The
+   sealed certificate-context fields are <es-version>, <client-magic>,
+   <serial>, <ts-end>, and <profile-extension-hash>; <profile-extension-
+   hash> is compared to SHA-256(<extensions>) for the matched
+   certificate.  It then derives the per-query key:
 
    <shared-key> ::= HKDF-SHA256(IKM  = resume-secret,
                                 salt = <client-magic> <client-nonce>,
@@ -2283,9 +2286,10 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
        resolver MUST silently drop the query; the client re-handshakes
        with a query that carries a ciphertext.
 
-   5.  Ticket context mismatch: the <client-magic> or <es-version>
-       sealed in the ticket does not match the resumption context.  The
-       resolver MUST silently drop the query.
+   5.  Ticket context mismatch: any sealed certificate-context field in
+       the ticket (<es-version>, <client-magic>, <serial>, <ts-end>, or
+       <profile-extension-hash>) does not match the resumption context.
+       The resolver MUST silently drop the query.
 
    6.  Malformed KEM ciphertext: one byte of <client-pk> in a query that
        carries a ciphertext is flipped.  X-Wing implicit rejection
