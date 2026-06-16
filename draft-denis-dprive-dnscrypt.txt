@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                             29 March 2026
-Expires: 30 September 2026
+Intended status: Informational                              16 June 2026
+Expires: 18 December 2026
 
 
                          The DNSCrypt Protocol
@@ -48,7 +48,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 30 September 2026.
+   This Internet-Draft will expire on 18 December 2026.
 
 Copyright Notice
 
@@ -237,10 +237,13 @@ Table of Contents
    *  <resolver-pk>: the resolver's public key.
 
    *  <client-nonce>: a unique query identifier for a given (<client-
-      sk>, <resolver-pk>) tuple.  The same query sent twice for the same
-      (<client-sk>, <resolver-pk>) tuple MUST use two distinct <client-
-      nonce> values.  The length of <client-nonce> is determined by the
-      chosen encryption algorithm.
+      sk>, <resolver-pk>) tuple.  Every newly encrypted DNSCrypt query
+      for the same (<client-sk>, <resolver-pk>) tuple MUST use a
+      distinct <client-nonce> value, even when the plaintext DNS query
+      is being retried.  Retransmitting the same already-encrypted
+      DNSCrypt packet does not require changing its nonce.  The length
+      of <client-nonce> is determined by the chosen encryption
+      algorithm.
 
    *  AE: the authenticated encryption function.
 
@@ -486,8 +489,11 @@ Table of Contents
 
    The client MUST authenticate and, if authentication succeeds, decrypt
    the response with the help of the resolver's public key, the shared
-   secret, and the obtained nonce.  In case the response fails
-   verification, it MUST be disregarded by the client.
+   secret, and the response nonce.  The client MUST verify that the
+   <client-nonce> prefix of the response nonce matches a currently
+   outstanding query.  In case the response fails verification, or the
+   <client-nonce> does not match a currently outstanding query, it MUST
+   be disregarded by the client.
 
    If the response has the TC flag set, the client MUST:
 
@@ -781,11 +787,24 @@ Table of Contents
 
        *  Nonces MUST NOT be reused for a given shared secret
 
-       *  Clients can include timestamps in their nonces in order to
-          quickly discard stale responses
+       *  Clients SHOULD generate <client-nonce> values using either a
+          cryptographically secure random number generator with enough
+          entropy to make collisions negligible for the lifetime of the
+          shared secret, or a secret-key pseudorandom construction, such
+          as encrypting a timestamp and any counter or random bits
+          needed for uniqueness using a block cipher.  Such
+          constructions MUST NOT expose wall-clock time or other stable
+          client state to observers, and MUST still provide nonce
+          uniqueness for the lifetime of the shared secret
 
-       *  Example: A nonce might be constructed as: timestamp ||
-          random_bytes
+       *  Clients SHOULD NOT include unencrypted timestamps in nonce
+          values, especially when Anonymized DNSCrypt, Tor, SOCKS, or
+          other proxying or anonymity systems are used
+
+       *  Clients can quickly discard stale responses by keeping local
+          state for outstanding queries, including their <client-nonce>
+          values and expiration deadlines, and rejecting responses for
+          nonces that are unknown, already answered, or expired
 
    3.  *Padding*:
 
@@ -831,8 +850,10 @@ Table of Contents
        retrying over TCP when necessary.
 
    4.  *Replay Exposure Reduction*: Nonces make responses query-
-       specific, and clients can use timestamps in client nonces to
-       quickly discard stale responses.
+       specific.  Clients can discard late, duplicate, or unrelated
+       responses by checking the returned <client-nonce> against local
+       outstanding-query state and request deadlines, without exposing
+       timestamps in plaintext nonce values.
 
    While DNSCrypt effectively mitigates these attacks, implementers
    should also be aware of privacy considerations that extend beyond
@@ -851,9 +872,16 @@ Table of Contents
        queries may reveal information.  Padding helps mitigate this but
        doesn't eliminate it completely.
 
-   3.  *Certificate Requests*: Initial certificate requests are
-       unencrypted and may reveal client capabilities.  This is a one-
-       time exposure per session.
+   3.  *Nonce Metadata*: Client nonces are visible on the wire.
+       Encoding unencrypted timestamps or other stable or linkable state
+       in nonce values can disclose clock information or support client
+       fingerprinting, particularly when relays or anonymity networks
+       are used.  Clients SHOULD prefer nonce constructions that reveal
+       no wall-clock time to observers.
+
+   4.  *Certificate Requests*: Initial certificate requests are
+       unencrypted but only return public data.  This is a one-time
+       exposure per session.
 
    These privacy considerations complement the security measures and
    should inform operational practices for DNSCrypt deployments.
