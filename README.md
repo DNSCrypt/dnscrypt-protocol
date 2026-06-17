@@ -6,7 +6,6 @@ The DNSCrypt protocol aims to prevent DNS spoofing and other types of attacks by
 
 The Anonymized DNSCrypt extension prevents DNS servers from associating queries with client IP addresses.
 
-- [DNSCrypt v2](https://raw.githubusercontent.com/DNSCrypt/dnscrypt-protocol/master/DNSCRYPT-V2-PROTOCOL.txt)
+- [DNSCrypt RFC](https://dnscrypt.github.io/dnscrypt-protocol/#go.draft-denis-dprive-dnscrypt.html) (editor's copy)
 - [Anonymized DNSCrypt](https://raw.githubusercontent.com/DNSCrypt/dnscrypt-protocol/master/ANONYMIZED-DNSCRYPT.txt)
-- [DNSCrypt RFC](https://dnscrypt.github.io/dnscrypt-protocol/#go.draft-denis-dprive-dnscrypt.html) (WIP, editor's copy)
 - [Reference implementation](reference-implementation/) (Python)
