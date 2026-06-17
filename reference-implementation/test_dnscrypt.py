@@ -1,7 +1,7 @@
 import hashlib
 import unittest
 
-from reference import dnscrypt as d
+import dnscrypt as d
 
 
 DNS_QUERY = bytes.fromhex(

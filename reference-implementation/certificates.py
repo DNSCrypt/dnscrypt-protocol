@@ -6,7 +6,7 @@ import struct
 from dataclasses import dataclass, replace
 from typing import Iterable, Sequence
 
-from .constants import (
+from constants import (
     AEAD_ID_XCHACHA20_DJB_POLY1305,
     CERT_MAGIC,
     CLIENT_MAGIC_SIZE,
@@ -22,8 +22,8 @@ from .constants import (
     XWING_CIPHERTEXT_SIZE,
     XWING_PUBLIC_KEY_SIZE,
 )
-from .crypto import _require_size, ed25519_sign, ed25519_verify
-from .errors import CertificateError
+from crypto import _require_size, ed25519_sign, ed25519_verify
+from errors import CertificateError
 
 
 def resolver_pk_len_for_es_version(es_version: bytes) -> int:

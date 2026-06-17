@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 from typing import Sequence
 
-from .certificates import client_pk_len_for_es_version
-from .constants import (
+from certificates import client_pk_len_for_es_version
+from constants import (
     CLIENT_MAGIC_SIZE,
     CLIENT_NONCE_SIZE,
     ES_VERSION_XCHACHA20POLY1305,
@@ -18,7 +18,7 @@ from .constants import (
     RESOLVER_NONCE_SIZE,
     TAG_SIZE,
 )
-from .crypto import (
+from crypto import (
     _require_size,
     box_xchacha20_shared_key,
     pad_7816_4,
@@ -28,8 +28,8 @@ from .crypto import (
     xchacha20_djb_poly1305_open,
     xchacha20_djb_poly1305_seal,
 )
-from .errors import CertificateError, DecryptionError
-from .types import DecryptedQuery, PreparedQuery, ResolverCertificate
+from errors import CertificateError, DecryptionError
+from protocol_types import DecryptedQuery, PreparedQuery, ResolverCertificate
 
 
 def encrypt_dnscrypt_query(
@@ -92,7 +92,7 @@ def decrypt_dnscrypt_query(
     if certificate.es_version == ES_VERSION_XCHACHA20POLY1305:
         shared_key = box_xchacha20_shared_key(match.resolver_sk, client_pk)
     elif certificate.es_version == ES_VERSION_XWING:
-        from .pq import pq_shared_key, xwing_decapsulate
+        from pq import pq_shared_key, xwing_decapsulate
 
         kem_ss = xwing_decapsulate(encrypted_kem=client_pk, secret_seed=match.resolver_sk)
         shared_key = pq_shared_key(certificate, kem_ss, client_pk)

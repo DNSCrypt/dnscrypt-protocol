@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import ipaddress
 
-from .certificates import DNSCryptCertificate
+from certificates import DNSCryptCertificate
 
 
 @dataclass(frozen=True)

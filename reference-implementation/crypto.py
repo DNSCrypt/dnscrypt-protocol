@@ -12,8 +12,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.primitives.poly1305 import Poly1305
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from .constants import NONCE_SIZE, PADDING_BLOCK_SIZE, RESOLVER_NONCE_SIZE, TAG_SIZE
-from .errors import CertificateError, DecryptionError, PaddingError
+from constants import NONCE_SIZE, PADDING_BLOCK_SIZE, RESOLVER_NONCE_SIZE, TAG_SIZE
+from errors import CertificateError, DecryptionError, PaddingError
 
 
 def _require_size(name: str, value: bytes, size: int) -> None:
