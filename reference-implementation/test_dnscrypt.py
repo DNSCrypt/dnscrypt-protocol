@@ -262,6 +262,71 @@ class DNSCryptReferenceTests(unittest.TestCase):
             "2bf202dd3f33d38854450e70a02bd1a317a23bf6d79c5dae406787c9c5f34f52",
         )
 
+    def test_certificate_retrieval_amplification(self):
+        """Check the certificate retrieval anti-amplification size rule."""
+
+        provider_seed = d.iota(0x00, 32)
+        classical = d.DNSCryptCertificate.sign(
+            provider_signing_seed=provider_seed,
+            es_version=d.ES_VERSION_XCHACHA20POLY1305,
+            resolver_pk=d.x25519_public_key(d.iota(0x20, 32)),
+            client_magic=bytes.fromhex("b1b2b3b4b5b6b7b8"),
+            serial=1,
+            ts_start=0x68000000,
+            ts_end=0x68015180,
+        ).to_bytes()
+        resolver_key_pair = d.xwing_generate_key_pair_derand(d.iota(0x20, 32))
+        pq = d.DNSCryptCertificate.sign(
+            provider_signing_seed=provider_seed,
+            es_version=d.ES_VERSION_XWING,
+            resolver_pk=resolver_key_pair.public_key,
+            client_magic=bytes.fromhex("a1b2c3d4e5f60718"),
+            serial=2,
+            ts_start=0x68000000,
+            ts_end=0x68015180,
+            extensions=d.pq_profile_extension(),
+        ).to_bytes()
+        provider_name = "2.dnscrypt-cert.example.com"
+
+        # One 1320-byte PQ certificate is about 1338 bytes as a TXT answer record.
+        self.assertEqual(len(pq), 1320)
+        base_query = d.certificate_query(provider_name)
+        self.assertEqual(
+            len(d.build_certificate_response(base_query, [pq])) - len(base_query),
+            1338,
+        )
+
+        # A query padded past the response carries the PQ certificate over UDP.
+        padded = d.certificate_query(provider_name, padded_length=1600)
+        served = d.serve_certificates(padded, [classical], [pq], over_udp=True)
+        self.assertEqual(served[6:8], b"\x00\x02")  # two answers
+        self.assertFalse(served[2] & 0x02)  # TC not set
+        self.assertLessEqual(len(served), len(padded))
+        self.assertEqual(d.relay_certificate_response(padded, served), served)
+
+        # An unpadded query is too small: the PQ certificate is withheld with TC set.
+        small = d.certificate_query(provider_name)
+        truncated = d.serve_certificates(small, [classical], [pq], over_udp=True)
+        self.assertEqual(truncated[6:8], b"\x00\x01")  # classical only
+        self.assertTrue(truncated[2] & 0x02)  # TC set
+        with self.assertRaises(d.AmplificationError):
+            d.relay_certificate_response(small, served)
+
+        # Over TCP the source is validated, so the PQ certificate is always sent.
+        over_tcp = d.serve_certificates(small, [classical], [pq], over_udp=False)
+        self.assertEqual(over_tcp[6:8], b"\x00\x02")
+        self.assertFalse(over_tcp[2] & 0x02)
+
+        # The rollover set of two classical and two PQ certificates needs a larger
+        # query, since the response roughly doubles during a key rotation.
+        rollover_query = d.certificate_query(provider_name, padded_length=3200)
+        rollover = d.serve_certificates(
+            rollover_query, [classical, classical], [pq, pq], over_udp=True
+        )
+        self.assertEqual(rollover[6:8], b"\x00\x04")
+        self.assertFalse(rollover[2] & 0x02)
+        self.assertLessEqual(len(rollover), len(rollover_query))
+
     def test_pq_full_and_resumed_round_trip(self):
         """Check randomized full-PQ and resumed-query round trips."""
 

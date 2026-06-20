@@ -6,6 +6,7 @@ used by the tests and examples.
 """
 
 from certificates import *
+from certificate_retrieval import *
 from constants import *
 from crypto import *
 from errors import *
