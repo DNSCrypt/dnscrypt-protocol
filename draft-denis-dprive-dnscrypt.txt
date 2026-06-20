@@ -276,7 +276,10 @@ Table of Contents
       of <client-nonce> is determined by the chosen encryption
       algorithm.
 
-   *  AE: the authenticated encryption function.
+   *  AE: the authenticated encryption function.  For the encryption
+      systems defined in this document, it is the XChaCha20_DJB-Poly1305
+      construction of Appendix 1, whose output is the 16-byte
+      authentication tag followed by the ciphertext.
 
    *  <encrypted-query>: AE(<shared-key> <client-nonce> <client-nonce-
       pad>, <client-query> <client-query-pad>)
@@ -313,7 +316,10 @@ Table of Contents
       (<client-pk>, <resolver-sk>) tuple.  The length of <resolver-
       nonce> depends on the chosen encryption algorithm.
 
-   *  AE: the authenticated encryption function.
+   *  AE: the authenticated encryption function.  For the encryption
+      systems defined in this document, it is the XChaCha20_DJB-Poly1305
+      construction of Appendix 1, whose output is the 16-byte
+      authentication tag followed by the ciphertext.
 
    *  <encrypted-response>: AE(<shared-key>, <nonce>, <resolver-
       response> <resolver-response-pad>)
@@ -689,7 +695,10 @@ Table of Contents
    *  <cert-magic>: 0x44 0x4e 0x53 0x43
 
    *  <es-version>: the cryptographic construction to use with this
-      certificate.  For Box-XChaChaPoly, <es-version> MUST be 0x00 0x02.
+      certificate.  For the Box-XChaChaPoly construction of Appendix 1,
+      that is, the X25519 key exchange with the XChaCha20_DJB-Poly1305
+      authenticated encryption algorithm, <es-version> MUST be 0x00
+      0x02.
 
    *  <protocol-minor-version>: 0x00 0x00
 
@@ -727,6 +736,15 @@ Table of Contents
    Certificates made of this information, without extensions, are 116
    bytes long.  With the addition of <cert-magic>, <es-version>, and
    <protocol-minor-version>, the record is 124 bytes long.
+
+   Within a TXT record, the certificate is carried in the record's
+   RDATA, which is a sequence of length-prefixed character-strings
+   [RFC1035].  A client reconstructs the certificate by concatenating
+   these character-strings in order, after removing the single length
+   octet that precedes each one.  A 124-byte classical certificate fits
+   in a single character-string, whereas a larger certificate spans
+   several character-strings that MUST be concatenated in this way
+   before the certificate is parsed.
 
    After receiving a set of certificates, the client checks their
    validity based on the current date, filters out the ones designed for
