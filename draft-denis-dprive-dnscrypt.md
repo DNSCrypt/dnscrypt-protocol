@@ -126,7 +126,7 @@ Definitions for client queries:
 - `<client-sk>`: the client's secret key.
 - `<resolver-pk>`: the resolver's public key.
 - `<client-nonce>`: a unique query identifier for a given (`<client-sk>`, `<resolver-pk>`) tuple. Every newly encrypted DNSCrypt query for the same (`<client-sk>`, `<resolver-pk>`) tuple MUST use a distinct `<client-nonce>` value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of `<client-nonce>` is determined by the chosen encryption algorithm.
-- `AE`: the authenticated encryption function.
+- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.
 - `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered.
@@ -142,7 +142,7 @@ Definitions for server responses:
 - `<client-pk>`: the client's public key.
 - `<resolver-sk>`: the resolver's secret key.
 - `<resolver-nonce>`: a unique response identifier for a given `(<client-pk>, <resolver-sk>)` tuple. The length of `<resolver-nonce>` depends on the chosen encryption algorithm.
-- `AE`: the authenticated encryption function.
+- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.
 - `<encrypted-response>`: `AE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered.
@@ -379,7 +379,7 @@ A successful response to a certificate request contains one or more `TXT` record
 
 - `<cert>`: `<cert-magic> <es-version> <protocol-minor-version> <signature> <resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>`
 - `<cert-magic>`: `0x44 0x4e 0x53 0x43`
-- `<es-version>`: the cryptographic construction to use with this certificate. For Box-XChaChaPoly, `<es-version>` MUST be `0x00 0x02`.
+- `<es-version>`: the cryptographic construction to use with this certificate. For the `Box-XChaChaPoly` construction of Appendix 1, that is, the X25519 key exchange with the `XChaCha20_DJB-Poly1305` authenticated encryption algorithm, `<es-version>` MUST be `0x00 0x02`.
 - `<protocol-minor-version>`: `0x00 0x00`
 - `<signature>`: a 64-byte signature of `(<resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>)` using the Ed25519 algorithm and the provider secret key. Ed25519 MUST be used in this version of the protocol.
 - `<resolver-pk>`: the resolver short-term public key, which is 32 bytes when using X25519.
@@ -390,6 +390,8 @@ A successful response to a certificate request contains one or more `TXT` record
 - `<extensions>`: empty in the current protocol version, but may contain additional data in future revisions, including minor versions. The computation and verification of the signature MUST include the extensions. An implementation not supporting these extensions MUST ignore them.
 
 Certificates made of this information, without extensions, are 116 bytes long. With the addition of `<cert-magic>`, `<es-version>`, and `<protocol-minor-version>`, the record is 124 bytes long.
+
+Within a `TXT` record, the certificate is carried in the record's RDATA, which is a sequence of length-prefixed character-strings {{!RFC1035}}. A client reconstructs the certificate by concatenating these character-strings in order, after removing the single length octet that precedes each one. A 124-byte classical certificate fits in a single character-string, whereas a larger certificate spans several character-strings that MUST be concatenated in this way before the certificate is parsed.
 
 After receiving a set of certificates, the client checks their validity based on the current date, filters out the ones designed for encryption systems that are not supported by the client, and chooses the certificate with the higher serial number.
 
