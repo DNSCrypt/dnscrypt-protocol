@@ -126,11 +126,11 @@ Definitions for client queries:
 - `<client-sk>`: the client's secret key.
 - `<resolver-pk>`: the resolver's public key.
 - `<client-nonce>`: a unique query identifier for a given (`<client-sk>`, `<resolver-pk>`) tuple. Every newly encrypted DNSCrypt query for the same (`<client-sk>`, `<resolver-pk>`) tuple MUST use a distinct `<client-nonce>` value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of `<client-nonce>` is determined by the chosen encryption algorithm.
-- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.
+- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
 - `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered.
-- `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes.
+- `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes. For `<es-version>` `0x00 0x02`, the encryption algorithm uses a 24-byte nonce, so `<client-nonce>` is 12 bytes and `<client-nonce-pad>` is the remaining 12 NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
 Definitions for server responses:
@@ -142,7 +142,7 @@ Definitions for server responses:
 - `<client-pk>`: the client's public key.
 - `<resolver-sk>`: the resolver's secret key.
 - `<resolver-nonce>`: a unique response identifier for a given `(<client-pk>, <resolver-sk>)` tuple. The length of `<resolver-nonce>` depends on the chosen encryption algorithm.
-- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.
+- `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
 - `<encrypted-response>`: `AE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered.
@@ -352,9 +352,11 @@ The name in the question (`<provider name>`) MUST follow this scheme:
 
 A major protocol version has only one certificate format.
 
-A DNSCrypt client implementing the second version of the protocol MUST send a query with the `TXT` type and a name of the form:
+A DNSCrypt client implementing the second version of the protocol MUST send a query with the `TXT` type and `IN` class, and a name of the form:
 
 `2.dnscrypt-cert.example.com`
+
+The RD (Recursion Desired) bit MAY be set; a resolver serving a certificate for its own provider name ignores it.
 
 The zone MUST be a valid DNS name, but MAY not be registered in the DNS hierarchy.
 
