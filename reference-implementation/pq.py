@@ -9,8 +9,8 @@ from typing import Sequence
 from cryptography.hazmat.primitives.asymmetric import mlkem, x25519
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from .certificates import DNSCryptCertificate, parse_pq_profile_extension
-from .constants import (
+from certificates import DNSCryptCertificate, parse_pq_profile_extension
+from constants import (
     CLIENT_NONCE_SIZE,
     ES_VERSION_XWING,
     MIN_UDP_QUERY_LEN,
@@ -27,7 +27,7 @@ from .constants import (
     XWING_MLKEM_PUBLIC_KEY_SIZE,
     XWING_PUBLIC_KEY_SIZE,
 )
-from .crypto import (
+from crypto import (
     _require_size,
     hkdf_sha256,
     pad_7816_4,
@@ -36,9 +36,9 @@ from .crypto import (
     xchacha20_djb_poly1305_open,
     xchacha20_djb_poly1305_seal,
 )
-from .errors import CertificateError, DecryptionError
-from .packets import decrypt_dnscrypt_response, encrypt_dnscrypt_response
-from .types import (
+from errors import CertificateError, DecryptionError
+from packets import decrypt_dnscrypt_response, encrypt_dnscrypt_response
+from protocol_types import (
     DecryptedQuery,
     IssuedPQTicket,
     OpenedTicket,

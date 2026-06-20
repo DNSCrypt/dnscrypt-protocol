@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 
-from .constants import ANON_MAGIC
-from .types import AnonymizedDNSCryptQuery
+from constants import ANON_MAGIC
+from protocol_types import AnonymizedDNSCryptQuery
 
 
 def tcp_packet(packet: bytes) -> bytes:
