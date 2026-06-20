@@ -279,7 +279,10 @@ Table of Contents
    *  AE: the authenticated encryption function.  For the encryption
       systems defined in this document, it is the XChaCha20_DJB-Poly1305
       construction of Appendix 1, whose output is the 16-byte
-      authentication tag followed by the ciphertext.
+      authentication tag followed by the ciphertext.  This is the NaCl
+      secretbox layout, in which the one-time Poly1305 key is taken from
+      the start of the keystream; it is not the AEAD of [RFC8439], and
+      the two are not interchangeable.  See Appendix 1 for details.
 
    *  <encrypted-query>: AE(<shared-key> <client-nonce> <client-nonce-
       pad>, <client-query> <client-query-pad>)
@@ -293,7 +296,10 @@ Table of Contents
 
    *  <client-nonce-pad>: <client-nonce> length is half the nonce length
       required by the encryption algorithm.  In client queries, the
-      other half, <client-nonce-pad> is filled with NUL bytes.
+      other half, <client-nonce-pad> is filled with NUL bytes.  For <es-
+      version> 0x00 0x02, the encryption algorithm uses a 24-byte nonce,
+      so <client-nonce> is 12 bytes and <client-nonce-pad> is the
+      remaining 12 NUL bytes.
 
    *  <client-query-pad>: the variable-length padding.
 
@@ -319,7 +325,10 @@ Table of Contents
    *  AE: the authenticated encryption function.  For the encryption
       systems defined in this document, it is the XChaCha20_DJB-Poly1305
       construction of Appendix 1, whose output is the 16-byte
-      authentication tag followed by the ciphertext.
+      authentication tag followed by the ciphertext.  This is the NaCl
+      secretbox layout, in which the one-time Poly1305 key is taken from
+      the start of the keystream; it is not the AEAD of [RFC8439], and
+      the two are not interchangeable.  See Appendix 1 for details.
 
    *  <encrypted-response>: AE(<shared-key>, <nonce>, <resolver-
       response> <resolver-response-pad>)
@@ -646,9 +655,13 @@ Table of Contents
    A major protocol version has only one certificate format.
 
    A DNSCrypt client implementing the second version of the protocol
-   MUST send a query with the TXT type and a name of the form:
+   MUST send a query with the TXT type and IN class, and a name of the
+   form:
 
    2.dnscrypt-cert.example.com
+
+   The RD (Recursion Desired) bit MAY be set; a resolver serving a
+   certificate for its own provider name ignores it.
 
    The zone MUST be a valid DNS name, but MAY not be registered in the
    DNS hierarchy.
@@ -2435,6 +2448,10 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
               May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 
+   [RFC8439]  Nir, Y. and A. Langley, "ChaCha20 and Poly1305 for IETF
+              Protocols", RFC 8439, DOI 10.17487/RFC8439, June 2018,
+              <https://www.rfc-editor.org/info/rfc8439>.
+
    [RFC7766]  Dickinson, J., Dickinson, S., Bellis, R., Mankin, A., and
               D. Wessels, "DNS Transport over TCP - Implementation
               Requirements", RFC 7766, DOI 10.17487/RFC7766, March 2016,
@@ -2449,10 +2466,6 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
               Multiplexed and Secure Transport", RFC 9000,
               DOI 10.17487/RFC9000, May 2021,
               <https://www.rfc-editor.org/info/rfc9000>.
-
-   [RFC8439]  Nir, Y. and A. Langley, "ChaCha20 and Poly1305 for IETF
-              Protocols", RFC 8439, DOI 10.17487/RFC8439, June 2018,
-              <https://www.rfc-editor.org/info/rfc8439>.
 
    [RFC7748]  Langley, A., Hamburg, M., and S. Turner, "Elliptic Curves
               for Security", RFC 7748, DOI 10.17487/RFC7748, January

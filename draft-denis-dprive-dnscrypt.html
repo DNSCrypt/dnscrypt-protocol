@@ -1508,7 +1508,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-3.6.1"><code>&lt;client-nonce&gt;</code>: a unique query identifier for a given (<code>&lt;client-sk&gt;</code>, <code>&lt;resolver-pk&gt;</code>) tuple. Every newly encrypted DNSCrypt query for the same (<code>&lt;client-sk&gt;</code>, <code>&lt;resolver-pk&gt;</code>) tuple <span class="bcp14">MUST</span> use a distinct <code>&lt;client-nonce&gt;</code> value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of <code>&lt;client-nonce&gt;</code> is determined by the chosen encryption algorithm.<a href="#section-4-3.6.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-3.7">
-          <p id="section-4-3.7.1"><code>AE</code>: the authenticated encryption function. For the encryption systems defined in this document, it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.<a href="#section-4-3.7.1" class="pilcrow">¶</a></p>
+          <p id="section-4-3.7.1"><code>AE</code>: the authenticated encryption function. For the encryption systems defined in this document, it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl <code>secretbox</code> layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of <span>[<a href="#RFC8439" class="cite xref">RFC8439</a>]</span>, and the two are not interchangeable. See Appendix 1 for details.<a href="#section-4-3.7.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-3.8">
           <p id="section-4-3.8.1"><code>&lt;encrypted-query&gt;</code>: <code>AE(&lt;shared-key&gt; &lt;client-nonce&gt; &lt;client-nonce-pad&gt;, &lt;client-query&gt; &lt;client-query-pad&gt;)</code><a href="#section-4-3.8.1" class="pilcrow">¶</a></p>
@@ -1520,7 +1520,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-3.10.1"><code>&lt;client-query&gt;</code>: the unencrypted client query. The query is not modified; in particular, the query flags are not altered.<a href="#section-4-3.10.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-3.11">
-          <p id="section-4-3.11.1"><code>&lt;client-nonce-pad&gt;</code>: <code>&lt;client-nonce&gt;</code> length is half the nonce length required by the encryption algorithm. In client queries, the other half, <code>&lt;client-nonce-pad&gt;</code> is filled with NUL bytes.<a href="#section-4-3.11.1" class="pilcrow">¶</a></p>
+          <p id="section-4-3.11.1"><code>&lt;client-nonce-pad&gt;</code>: <code>&lt;client-nonce&gt;</code> length is half the nonce length required by the encryption algorithm. In client queries, the other half, <code>&lt;client-nonce-pad&gt;</code> is filled with NUL bytes. For <code>&lt;es-version&gt;</code> <code>0x00 0x02</code>, the encryption algorithm uses a 24-byte nonce, so <code>&lt;client-nonce&gt;</code> is 12 bytes and <code>&lt;client-nonce-pad&gt;</code> is the remaining 12 NUL bytes.<a href="#section-4-3.11.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-3.12">
           <p id="section-4-3.12.1"><code>&lt;client-query-pad&gt;</code>: the variable-length padding.<a href="#section-4-3.12.1" class="pilcrow">¶</a></p>
@@ -1550,7 +1550,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-5.7.1"><code>&lt;resolver-nonce&gt;</code>: a unique response identifier for a given <code>(&lt;client-pk&gt;, &lt;resolver-sk&gt;)</code> tuple. The length of <code>&lt;resolver-nonce&gt;</code> depends on the chosen encryption algorithm.<a href="#section-4-5.7.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-5.8">
-          <p id="section-4-5.8.1"><code>AE</code>: the authenticated encryption function. For the encryption systems defined in this document, it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext.<a href="#section-4-5.8.1" class="pilcrow">¶</a></p>
+          <p id="section-4-5.8.1"><code>AE</code>: the authenticated encryption function. For the encryption systems defined in this document, it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl <code>secretbox</code> layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of <span>[<a href="#RFC8439" class="cite xref">RFC8439</a>]</span>, and the two are not interchangeable. See Appendix 1 for details.<a href="#section-4-5.8.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-5.9">
           <p id="section-4-5.9.1"><code>&lt;encrypted-response&gt;</code>: <code>AE(&lt;shared-key&gt;, &lt;nonce&gt;, &lt;resolver-response&gt; &lt;resolver-response-pad&gt;)</code><a href="#section-4-5.9.1" class="pilcrow">¶</a></p>
@@ -1799,81 +1799,82 @@ In this context, <code>&lt;client-query&gt;</code> represents the original clien
 <p id="section-5.5-5">The name in the question (<code>&lt;provider name&gt;</code>) <span class="bcp14">MUST</span> follow this scheme:<a href="#section-5.5-5" class="pilcrow">¶</a></p>
 <p id="section-5.5-6"><code>&lt;protocol-major-version&gt; . dnscrypt-cert . &lt;zone&gt;</code><a href="#section-5.5-6" class="pilcrow">¶</a></p>
 <p id="section-5.5-7">A major protocol version has only one certificate format.<a href="#section-5.5-7" class="pilcrow">¶</a></p>
-<p id="section-5.5-8">A DNSCrypt client implementing the second version of the protocol <span class="bcp14">MUST</span> send a query with the <code>TXT</code> type and a name of the form:<a href="#section-5.5-8" class="pilcrow">¶</a></p>
+<p id="section-5.5-8">A DNSCrypt client implementing the second version of the protocol <span class="bcp14">MUST</span> send a query with the <code>TXT</code> type and <code>IN</code> class, and a name of the form:<a href="#section-5.5-8" class="pilcrow">¶</a></p>
 <p id="section-5.5-9"><code>2.dnscrypt-cert.example.com</code><a href="#section-5.5-9" class="pilcrow">¶</a></p>
-<p id="section-5.5-10">The zone <span class="bcp14">MUST</span> be a valid DNS name, but <span class="bcp14">MAY</span> not be registered in the DNS hierarchy.<a href="#section-5.5-10" class="pilcrow">¶</a></p>
-<p id="section-5.5-11">A single provider name can be shared by multiple resolvers operated by the same entity, and a resolver can respond to multiple provider
-names, especially to support multiple protocol versions simultaneously.<a href="#section-5.5-11" class="pilcrow">¶</a></p>
-<p id="section-5.5-12">In order to use a DNSCrypt-enabled resolver, a client must know the following information:<a href="#section-5.5-12" class="pilcrow">¶</a></p>
+<p id="section-5.5-10">The RD (Recursion Desired) bit <span class="bcp14">MAY</span> be set; a resolver serving a certificate for its own provider name ignores it.<a href="#section-5.5-10" class="pilcrow">¶</a></p>
+<p id="section-5.5-11">The zone <span class="bcp14">MUST</span> be a valid DNS name, but <span class="bcp14">MAY</span> not be registered in the DNS hierarchy.<a href="#section-5.5-11" class="pilcrow">¶</a></p>
+<p id="section-5.5-12">A single provider name can be shared by multiple resolvers operated by the same entity, and a resolver can respond to multiple provider
+names, especially to support multiple protocol versions simultaneously.<a href="#section-5.5-12" class="pilcrow">¶</a></p>
+<p id="section-5.5-13">In order to use a DNSCrypt-enabled resolver, a client must know the following information:<a href="#section-5.5-13" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-5.5-13.1">
-            <p id="section-5.5-13.1.1">The resolver IP address and port<a href="#section-5.5-13.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-5.5-14.1">
+            <p id="section-5.5-14.1.1">The resolver IP address and port<a href="#section-5.5-14.1.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-13.2">
-            <p id="section-5.5-13.2.1">The provider name<a href="#section-5.5-13.2.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-14.2">
+            <p id="section-5.5-14.2.1">The provider name<a href="#section-5.5-14.2.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-13.3">
-            <p id="section-5.5-13.3.1">The provider public key<a href="#section-5.5-13.3.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-14.3">
+            <p id="section-5.5-14.3.1">The provider public key<a href="#section-5.5-14.3.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
-<p id="section-5.5-14">The provider public key is a long-term key whose sole purpose is to verify the certificates. It is never used to encrypt or verify DNS queries. A single provider public key can be employed to sign multiple certificates.<a href="#section-5.5-14" class="pilcrow">¶</a></p>
-<p id="section-5.5-15">For example, an organization operating multiple resolvers can use a unique provider name and provider public key across all resolvers,
+<p id="section-5.5-15">The provider public key is a long-term key whose sole purpose is to verify the certificates. It is never used to encrypt or verify DNS queries. A single provider public key can be employed to sign multiple certificates.<a href="#section-5.5-15" class="pilcrow">¶</a></p>
+<p id="section-5.5-16">For example, an organization operating multiple resolvers can use a unique provider name and provider public key across all resolvers,
 and just provide a list of IP addresses and ports. Each resolver <span class="bcp14">MAY</span> have its unique set of certificates that can be signed with the
-same key.<a href="#section-5.5-15" class="pilcrow">¶</a></p>
-<p id="section-5.5-16">It is <span class="bcp14">RECOMMENDED</span> that certificates are signed using specialized hardware rather than directly on the resolvers themselves. Once signed, resolvers <span class="bcp14">SHOULD</span> make these certificates available to clients. Signing certificates on dedicated hardware helps ensure security and integrity, as it isolates the process from potential vulnerabilities present in the resolver's system.<a href="#section-5.5-16" class="pilcrow">¶</a></p>
-<p id="section-5.5-17">A successful response to a certificate request contains one or more <code>TXT</code> records, each record containing a certificate encoded as follows:<a href="#section-5.5-17" class="pilcrow">¶</a></p>
+same key.<a href="#section-5.5-16" class="pilcrow">¶</a></p>
+<p id="section-5.5-17">It is <span class="bcp14">RECOMMENDED</span> that certificates are signed using specialized hardware rather than directly on the resolvers themselves. Once signed, resolvers <span class="bcp14">SHOULD</span> make these certificates available to clients. Signing certificates on dedicated hardware helps ensure security and integrity, as it isolates the process from potential vulnerabilities present in the resolver's system.<a href="#section-5.5-17" class="pilcrow">¶</a></p>
+<p id="section-5.5-18">A successful response to a certificate request contains one or more <code>TXT</code> records, each record containing a certificate encoded as follows:<a href="#section-5.5-18" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-5.5-18.1">
-            <p id="section-5.5-18.1.1"><code>&lt;cert&gt;</code>: <code>&lt;cert-magic&gt; &lt;es-version&gt; &lt;protocol-minor-version&gt; &lt;signature&gt; &lt;resolver-pk&gt; &lt;client-magic&gt; &lt;serial&gt; &lt;ts-start&gt; &lt;ts-end&gt; &lt;extensions&gt;</code><a href="#section-5.5-18.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-5.5-19.1">
+            <p id="section-5.5-19.1.1"><code>&lt;cert&gt;</code>: <code>&lt;cert-magic&gt; &lt;es-version&gt; &lt;protocol-minor-version&gt; &lt;signature&gt; &lt;resolver-pk&gt; &lt;client-magic&gt; &lt;serial&gt; &lt;ts-start&gt; &lt;ts-end&gt; &lt;extensions&gt;</code><a href="#section-5.5-19.1.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.2">
-            <p id="section-5.5-18.2.1"><code>&lt;cert-magic&gt;</code>: <code>0x44 0x4e 0x53 0x43</code><a href="#section-5.5-18.2.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.2">
+            <p id="section-5.5-19.2.1"><code>&lt;cert-magic&gt;</code>: <code>0x44 0x4e 0x53 0x43</code><a href="#section-5.5-19.2.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.3">
-            <p id="section-5.5-18.3.1"><code>&lt;es-version&gt;</code>: the cryptographic construction to use with this certificate. For the <code>Box-XChaChaPoly</code> construction of Appendix 1, that is, the X25519 key exchange with the <code>XChaCha20_DJB-Poly1305</code> authenticated encryption algorithm, <code>&lt;es-version&gt;</code> <span class="bcp14">MUST</span> be <code>0x00 0x02</code>.<a href="#section-5.5-18.3.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.3">
+            <p id="section-5.5-19.3.1"><code>&lt;es-version&gt;</code>: the cryptographic construction to use with this certificate. For the <code>Box-XChaChaPoly</code> construction of Appendix 1, that is, the X25519 key exchange with the <code>XChaCha20_DJB-Poly1305</code> authenticated encryption algorithm, <code>&lt;es-version&gt;</code> <span class="bcp14">MUST</span> be <code>0x00 0x02</code>.<a href="#section-5.5-19.3.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.4">
-            <p id="section-5.5-18.4.1"><code>&lt;protocol-minor-version&gt;</code>: <code>0x00 0x00</code><a href="#section-5.5-18.4.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.4">
+            <p id="section-5.5-19.4.1"><code>&lt;protocol-minor-version&gt;</code>: <code>0x00 0x00</code><a href="#section-5.5-19.4.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.5">
-            <p id="section-5.5-18.5.1"><code>&lt;signature&gt;</code>: a 64-byte signature of <code>(&lt;resolver-pk&gt; &lt;client-magic&gt; &lt;serial&gt; &lt;ts-start&gt; &lt;ts-end&gt; &lt;extensions&gt;)</code> using the Ed25519 algorithm and the provider secret key. Ed25519 <span class="bcp14">MUST</span> be used in this version of the protocol.<a href="#section-5.5-18.5.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.5">
+            <p id="section-5.5-19.5.1"><code>&lt;signature&gt;</code>: a 64-byte signature of <code>(&lt;resolver-pk&gt; &lt;client-magic&gt; &lt;serial&gt; &lt;ts-start&gt; &lt;ts-end&gt; &lt;extensions&gt;)</code> using the Ed25519 algorithm and the provider secret key. Ed25519 <span class="bcp14">MUST</span> be used in this version of the protocol.<a href="#section-5.5-19.5.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.6">
-            <p id="section-5.5-18.6.1"><code>&lt;resolver-pk&gt;</code>: the resolver short-term public key, which is 32 bytes when using X25519.<a href="#section-5.5-18.6.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.6">
+            <p id="section-5.5-19.6.1"><code>&lt;resolver-pk&gt;</code>: the resolver short-term public key, which is 32 bytes when using X25519.<a href="#section-5.5-19.6.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.7">
-            <p id="section-5.5-18.7.1"><code>&lt;client-magic&gt;</code>: The first 8 bytes of a client query that was built using the information from this certificate. It <span class="bcp14">MAY</span> be a truncated public key. Two valid certificates cannot share the same <code>&lt;client-magic&gt;</code>. <code>&lt;client-magic&gt;</code> <span class="bcp14">MUST NOT</span> start with <code>0x00 0x00 0x00 0x00 0x00 0x00 0x00</code> (seven all-zero bytes) in order to avoid confusion with the QUIC protocol <span>[<a href="#RFC9000" class="cite xref">RFC9000</a>]</span>.<a href="#section-5.5-18.7.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.7">
+            <p id="section-5.5-19.7.1"><code>&lt;client-magic&gt;</code>: The first 8 bytes of a client query that was built using the information from this certificate. It <span class="bcp14">MAY</span> be a truncated public key. Two valid certificates cannot share the same <code>&lt;client-magic&gt;</code>. <code>&lt;client-magic&gt;</code> <span class="bcp14">MUST NOT</span> start with <code>0x00 0x00 0x00 0x00 0x00 0x00 0x00</code> (seven all-zero bytes) in order to avoid confusion with the QUIC protocol <span>[<a href="#RFC9000" class="cite xref">RFC9000</a>]</span>.<a href="#section-5.5-19.7.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.8">
-            <p id="section-5.5-18.8.1"><code>&lt;serial&gt;</code>: a 4-byte serial number in big-endian format. If more than one certificate is valid, the client <span class="bcp14">MUST</span> prefer the certificate with a higher serial number.<a href="#section-5.5-18.8.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.8">
+            <p id="section-5.5-19.8.1"><code>&lt;serial&gt;</code>: a 4-byte serial number in big-endian format. If more than one certificate is valid, the client <span class="bcp14">MUST</span> prefer the certificate with a higher serial number.<a href="#section-5.5-19.8.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.9">
-            <p id="section-5.5-18.9.1"><code>&lt;ts-start&gt;</code>: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-18.9.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.9">
+            <p id="section-5.5-19.9.1"><code>&lt;ts-start&gt;</code>: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-19.9.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.10">
-            <p id="section-5.5-18.10.1"><code>&lt;ts-end&gt;</code>: the date the certificate is valid until (inclusive), as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-18.10.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.10">
+            <p id="section-5.5-19.10.1"><code>&lt;ts-end&gt;</code>: the date the certificate is valid until (inclusive), as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-19.10.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-5.5-18.11">
-            <p id="section-5.5-18.11.1"><code>&lt;extensions&gt;</code>: empty in the current protocol version, but may contain additional data in future revisions, including minor versions. The computation and verification of the signature <span class="bcp14">MUST</span> include the extensions. An implementation not supporting these extensions <span class="bcp14">MUST</span> ignore them.<a href="#section-5.5-18.11.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-5.5-19.11">
+            <p id="section-5.5-19.11.1"><code>&lt;extensions&gt;</code>: empty in the current protocol version, but may contain additional data in future revisions, including minor versions. The computation and verification of the signature <span class="bcp14">MUST</span> include the extensions. An implementation not supporting these extensions <span class="bcp14">MUST</span> ignore them.<a href="#section-5.5-19.11.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
-<p id="section-5.5-19">Certificates made of this information, without extensions, are 116 bytes long. With the addition of <code>&lt;cert-magic&gt;</code>, <code>&lt;es-version&gt;</code>, and <code>&lt;protocol-minor-version&gt;</code>, the record is 124 bytes long.<a href="#section-5.5-19" class="pilcrow">¶</a></p>
-<p id="section-5.5-20">Within a <code>TXT</code> record, the certificate is carried in the record's RDATA, which is a sequence of length-prefixed character-strings <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span>. A client reconstructs the certificate by concatenating these character-strings in order, after removing the single length octet that precedes each one. A 124-byte classical certificate fits in a single character-string, whereas a larger certificate spans several character-strings that <span class="bcp14">MUST</span> be concatenated in this way before the certificate is parsed.<a href="#section-5.5-20" class="pilcrow">¶</a></p>
-<p id="section-5.5-21">After receiving a set of certificates, the client checks their validity based on the current date, filters out the ones designed for encryption systems that are not supported by the client, and chooses the certificate with the higher serial number.<a href="#section-5.5-21" class="pilcrow">¶</a></p>
-<p id="section-5.5-22">DNSCrypt queries sent by the client <span class="bcp14">MUST</span> use the <code>&lt;client-magic&gt;</code> header of the chosen certificate, as well as the specified encryption system and public key.<a href="#section-5.5-22" class="pilcrow">¶</a></p>
-<p id="section-5.5-23">The client <span class="bcp14">MUST</span> check for new certificates every hour and switch to a new certificate if:<a href="#section-5.5-23" class="pilcrow">¶</a></p>
+<p id="section-5.5-20">Certificates made of this information, without extensions, are 116 bytes long. With the addition of <code>&lt;cert-magic&gt;</code>, <code>&lt;es-version&gt;</code>, and <code>&lt;protocol-minor-version&gt;</code>, the record is 124 bytes long.<a href="#section-5.5-20" class="pilcrow">¶</a></p>
+<p id="section-5.5-21">Within a <code>TXT</code> record, the certificate is carried in the record's RDATA, which is a sequence of length-prefixed character-strings <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span>. A client reconstructs the certificate by concatenating these character-strings in order, after removing the single length octet that precedes each one. A 124-byte classical certificate fits in a single character-string, whereas a larger certificate spans several character-strings that <span class="bcp14">MUST</span> be concatenated in this way before the certificate is parsed.<a href="#section-5.5-21" class="pilcrow">¶</a></p>
+<p id="section-5.5-22">After receiving a set of certificates, the client checks their validity based on the current date, filters out the ones designed for encryption systems that are not supported by the client, and chooses the certificate with the higher serial number.<a href="#section-5.5-22" class="pilcrow">¶</a></p>
+<p id="section-5.5-23">DNSCrypt queries sent by the client <span class="bcp14">MUST</span> use the <code>&lt;client-magic&gt;</code> header of the chosen certificate, as well as the specified encryption system and public key.<a href="#section-5.5-23" class="pilcrow">¶</a></p>
+<p id="section-5.5-24">The client <span class="bcp14">MUST</span> check for new certificates every hour and switch to a new certificate if:<a href="#section-5.5-24" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-5.5-24.1">
-            <p id="section-5.5-24.1.1">The current certificate is not present or not valid anymore,<a href="#section-5.5-24.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-5.5-25.1">
+            <p id="section-5.5-25.1.1">The current certificate is not present or not valid anymore,<a href="#section-5.5-25.1.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
-<p id="section-5.5-25">or<a href="#section-5.5-25" class="pilcrow">¶</a></p>
+<p id="section-5.5-26">or<a href="#section-5.5-26" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-5.5-26.1">
-            <p id="section-5.5-26.1.1">A certificate with a higher serial number than the current one is available.<a href="#section-5.5-26.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-5.5-27.1">
+            <p id="section-5.5-27.1.1">A certificate with a higher serial number than the current one is available.<a href="#section-5.5-27.1.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
-<p id="section-5.5-27">The certificate management system ensures that cryptographic keys remain fresh and that clients can smoothly transition to updated certificates. With the core protocol mechanics now established, we can examine implementation considerations.<a href="#section-5.5-27" class="pilcrow">¶</a></p>
+<p id="section-5.5-28">The certificate management system ensures that cryptographic keys remain fresh and that clients can smoothly transition to updated certificates. With the core protocol mechanics now established, we can examine implementation considerations.<a href="#section-5.5-28" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -4036,6 +4037,10 @@ resume response wire, no new ticket (112, SHA-256):
       <dd>
 <span class="refAuthor">Leiba, B.</span>, <span class="refTitle">"Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 8174</span>, <span class="seriesInfo">DOI 10.17487/RFC8174</span>, <time datetime="2017-05" class="refDate">May 2017</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8174">https://www.rfc-editor.org/info/rfc8174</a>&gt;</span>. </dd>
 <dd class="break"></dd>
+<dt id="RFC8439">[RFC8439]</dt>
+      <dd>
+<span class="refAuthor">Nir, Y.</span> and <span class="refAuthor">A. Langley</span>, <span class="refTitle">"ChaCha20 and Poly1305 for IETF Protocols"</span>, <span class="seriesInfo">RFC 8439</span>, <span class="seriesInfo">DOI 10.17487/RFC8439</span>, <time datetime="2018-06" class="refDate">June 2018</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8439">https://www.rfc-editor.org/info/rfc8439</a>&gt;</span>. </dd>
+<dd class="break"></dd>
 <dt id="RFC7766">[RFC7766]</dt>
       <dd>
 <span class="refAuthor">Dickinson, J.</span>, <span class="refAuthor">Dickinson, S.</span>, <span class="refAuthor">Bellis, R.</span>, <span class="refAuthor">Mankin, A.</span>, and <span class="refAuthor">D. Wessels</span>, <span class="refTitle">"DNS Transport over TCP - Implementation Requirements"</span>, <span class="seriesInfo">RFC 7766</span>, <span class="seriesInfo">DOI 10.17487/RFC7766</span>, <time datetime="2016-03" class="refDate">March 2016</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc7766">https://www.rfc-editor.org/info/rfc7766</a>&gt;</span>. </dd>
@@ -4047,10 +4052,6 @@ resume response wire, no new ticket (112, SHA-256):
 <dt id="RFC9000">[RFC9000]</dt>
       <dd>
 <span class="refAuthor">Iyengar, J., Ed.</span> and <span class="refAuthor">M. Thomson, Ed.</span>, <span class="refTitle">"QUIC: A UDP-Based Multiplexed and Secure Transport"</span>, <span class="seriesInfo">RFC 9000</span>, <span class="seriesInfo">DOI 10.17487/RFC9000</span>, <time datetime="2021-05" class="refDate">May 2021</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc9000">https://www.rfc-editor.org/info/rfc9000</a>&gt;</span>. </dd>
-<dd class="break"></dd>
-<dt id="RFC8439">[RFC8439]</dt>
-      <dd>
-<span class="refAuthor">Nir, Y.</span> and <span class="refAuthor">A. Langley</span>, <span class="refTitle">"ChaCha20 and Poly1305 for IETF Protocols"</span>, <span class="seriesInfo">RFC 8439</span>, <span class="seriesInfo">DOI 10.17487/RFC8439</span>, <time datetime="2018-06" class="refDate">June 2018</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8439">https://www.rfc-editor.org/info/rfc8439</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 <dt id="RFC7748">[RFC7748]</dt>
       <dd>
