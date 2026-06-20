@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                              17 June 2026
-Expires: 19 December 2026
+Intended status: Informational                              20 June 2026
+Expires: 22 December 2026
 
 
                          The DNSCrypt Protocol
@@ -48,7 +48,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 19 December 2026.
+   This Internet-Draft will expire on 22 December 2026.
 
 Copyright Notice
 
@@ -1244,52 +1244,60 @@ Table of Contents
    4096 octets.
 
    A certificate response that contains a PQ certificate exceeds 512
-   bytes, so retrieval relies on EDNS(0) [RFC6891], TCP [RFC7766], or
-   both.  A 4096-octet DNS response is a useful upper bound for
-   certificate responses, but it is not a fragmentation-avoidance
-   target.  Operators that need maximum UDP robustness SHOULD use a
-   lower target; however, one PQ certificate already exceeds the common
-   1232-octet UDP payload target once DNS framing is included.
+   bytes, so retrieval relies on a sufficiently padded UDP query, TCP
+   [RFC7766], or both.  A 4096-octet DNS response is a useful upper
+   bound for certificate responses, but it is not a fragmentation-
+   avoidance target.  Operators that need maximum UDP robustness SHOULD
+   use a lower target; however, one PQ certificate already exceeds the
+   common 1232-octet UDP payload target once DNS framing is included.
 
 10.3.  Certificate Retrieval Amplification
 
    Certificate retrieval is an unauthenticated DNS query, and PQ
    certificates are much larger than classical ones, so a resolver that
-   returns one or more PQ certificates over UDP can be abused as a
+   returns one or more PQ certificates over UDP could be abused as a
    traffic amplifier in response to queries with a spoofed source
-   address.  Resolvers MUST NOT send a UDP certificate response larger
-   than the requestor's advertised EDNS(0) UDP payload size, or larger
-   than 512 octets when no EDNS(0) UDP payload size is advertised, and
-   SHOULD keep certificate responses below 4096 octets even when a
-   larger value is advertised.
+   address.  The anti-amplification rule is the same one classical
+   DNSCrypt already applies to its traffic: over UDP, a certificate
+   response MUST NOT be larger than the request that triggered it.  A
+   client that wants a PQ certificate over UDP therefore pads its
+   certificate query to at least the size of the expected response,
+   exactly as a query that carries a ciphertext is already large enough
+   to cover its response.  The advertised EDNS(0) [RFC6891] UDP payload
+   size is a fragmentation-avoidance hint and MUST NOT be used as the
+   amplification limit, because a spoofed query can advertise an
+   arbitrarily large buffer while remaining small.
 
-   Anonymized DNSCrypt relays forward certificate queries to upstream
-   resolvers over UDP, even when the client-to-relay connection uses
-   TCP.  Therefore, a resolver that wants PQ certificate discovery to
-   work reliably through existing relays SHOULD make the complete
-   certificate set fit in a UDP response, instead of assuming that the
-   client can obtain the PQ certificates through TCP fallback on the
-   same relay path.  For relay-compatible PQ deployments, resolvers
-   SHOULD use the following UDP certificate sets:
+   To let a client size that padding, a resolver SHOULD keep its UDP
+   certificate set small and predictable.  For relay-compatible PQ
+   deployments, resolvers SHOULD use the following certificate sets:
 
    *  Normal steady state: one classical certificate and one PQ
-      certificate.
+      certificate, typically about 1.5 KB.
 
    *  Rollover window: two classical certificates and two PQ
-      certificates.
+      certificates, typically about 3.0 KB.
 
-   Resolvers SHOULD NOT exceed the rollover certificate set over UDP.
+   Resolvers SHOULD NOT exceed the rollover certificate set over UDP,
+   and SHOULD keep certificate responses below 4096 octets.
 
-   If the complete certificate response would exceed these limits, the
-   resolver SHOULD set the TC flag and rely on the client retrying over
-   TCP [RFC7766].  When it does so, the resolver SHOULD still include
-   the smaller classical certificate in the truncated UDP response, so
-   that a client that does not implement PQ can proceed without a second
+   A client cannot tell from outside whether a rotation is in progress,
+   so a client that wants PQ certificates over UDP across rotations
+   SHOULD pad its certificate query to cover the rollover set rather
+   than only the steady-state set; otherwise it silently drops to the
+   classical certificate for the duration of every rollover window.
+
+   If the certificate response would be larger than the request, the
+   resolver MUST NOT return the oversized response over UDP; it SHOULD
+   instead set the TC flag and rely on the client retrying over TCP
+   [RFC7766].  When it does so, the resolver SHOULD still include the
+   smaller classical certificate in the truncated UDP response, so that
+   a client that does not implement PQ can proceed without a second
    round trip while a PQ-capable client learns that more certificates
    may be available over TCP.  Operators MAY serve a small classical
-   certificate over UDP while requiring TCP for larger PQ certificate
-   sets.  This affects neither the certificate format nor the lookup
-   name.
+   certificate over UDP while requiring a padded query or TCP for larger
+   PQ certificate sets.  This affects neither the certificate format nor
+   the lookup name.
 
    Because a resolver can withhold PQ certificates from a truncated UDP
    response, a PQ-capable client MUST honor the TC flag on a certificate
@@ -1498,10 +1506,15 @@ Table of Contents
 
    Certificate retrieval through a relay is different: the relay
    forwards the certificate query to the resolver over UDP and forwards
-   a matching certificate response back to the client.  PQ-capable
-   resolvers that want to be reachable through relays therefore SHOULD
-   follow the UDP certificate response size recommendations in
-   Certificate Retrieval Amplification.
+   a matching certificate response back to the client, and it applies
+   the same response-size check, dropping any response larger than the
+   query it relayed.  A client that wants a PQ certificate over UDP
+   through a relay therefore pads its certificate query to at least the
+   size of the expected certificate response, as described in
+   Certificate Retrieval Amplification, so the response passes both the
+   resolver's and the relay's anti-amplification check.  A client that
+   does not, or cannot, pad far enough receives the classical
+   certificate with the TC flag set and retries over TCP.
 
 10.9.  PQ Downgrade Protection
 
