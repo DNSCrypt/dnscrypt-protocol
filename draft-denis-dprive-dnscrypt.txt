@@ -141,21 +141,10 @@ Table of Contents
 
 1.  Introduction
 
-   The Domain Name System (DNS) [RFC1035] is a critical component of
-   Internet infrastructure, but its original design did not include
-   security features to protect the confidentiality and integrity of
-   queries and responses.  This fundamental security gap exposes DNS
-   traffic to eavesdropping, tampering, and various attacks that can
-   compromise user privacy and network security.
-
-   To address these vulnerabilities, this document defines the DNSCrypt
-   protocol, which encrypts and authenticates DNS queries and responses,
-   providing strong confidentiality, integrity, and resistance to
-   attacks affecting the original DNS protocol.  The protocol is
-   designed to be lightweight, extensible, and simple to implement
-   securely on top of existing DNS infrastructure, offering a practical
-   solution for securing DNS communications without requiring
-   significant changes to current systems.
+   DNSCrypt encrypts and authenticates DNS traffic between clients and
+   resolvers.  It uses signed resolver certificates, unauthenticated
+   certificate retrieval, authenticated encryption for queries and
+   responses, and optional relaying through Anonymized DNSCrypt.
 
 2.  Conventions And Definitions
 
@@ -365,7 +354,7 @@ Table of Contents
    The protocol operates as follows:
 
    1.  The DNSCrypt client sends a DNS query to a DNSCrypt server to
-       retrieve the server's public keys.
+       retrieve the server's certificates.
 
    2.  The client generates the client key-exchange value required by
        the selected certificate.
@@ -373,8 +362,7 @@ Table of Contents
    3.  The client encrypts unmodified DNS queries using the selected
        certificate, padding them as necessary, and concatenates them to
        <client-magic>, <client-pk>, and <client-nonce>.  The resulting
-       output is transmitted to the server via standard DNS transport
-       mechanisms [RFC1035].
+       output is transmitted to the server over UDP or TCP.
 
    4.  Encrypted queries are decrypted by the server using the query's
        <client-pk> field and the resolver secret key corresponding to
@@ -385,8 +373,8 @@ Table of Contents
        unmodified response, encrypts the result using the shared key and
        a nonce made of the client's nonce followed by the resolver's
        nonce, and truncates the response if necessary.  The resulting
-       packet, truncated or not, is sent to the client using standard
-       DNS mechanisms.
+       packet, truncated or not, is sent to the client over the same
+       transport.
 
    6.  The client authenticates and decrypts the response using the
        shared key and the nonce included in the response.  If the
@@ -397,23 +385,24 @@ Table of Contents
 
    Key features of the DNSCrypt protocol include:
 
-   *  Stateless operation: Every query can be processed independently
-      from other queries, with no session identifiers required.
+   *  Stateless operation: every query can be processed independently,
+      with no session identifiers required.
 
-   *  Flexible key management: Clients can replace their keys whenever
-      they want, without extra interactions with servers.
+   *  Fresh client key-exchange values: clients can generate new key-
+      exchange values as often as allowed by the selected encryption
+      system, without extra interactions with resolvers.
 
-   *  Proxy support: DNSCrypt packets can securely be proxied without
-      having to be decrypted, allowing client IP addresses to be hidden
-      from resolvers ("Anonymized DNSCrypt").
+   *  Proxy support: DNSCrypt packets can be relayed without being
+      decrypted, allowing client IP addresses to be hidden from
+      resolvers with Anonymized DNSCrypt.
 
-   *  Shared infrastructure: Recursive DNS servers can accept DNSCrypt
-      queries on the same IP address and port used for regular DNS
+   *  Shared infrastructure: recursive DNS servers can accept DNSCrypt
+      queries on the same IP address and port used for ordinary DNS
       traffic.
 
-   *  Attack mitigation: DNSCrypt mitigates two common security
-      vulnerabilities in regular DNS over UDP: amplification [RFC5358]
-      and fragmentation attacks.
+   *  Attack mitigation: DNSCrypt limits UDP response size, supports
+      padding, and uses TCP retry to reduce amplification and
+      fragmentation risk [RFC5358].
 
 5.2.  Transport
 
@@ -423,9 +412,6 @@ Table of Contents
 
    Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by
    default.
-
-   The choice of port 443 helps DNSCrypt traffic blend with HTTPS
-   traffic, providing some protection against traffic analysis.
 
 5.3.  DNS Wire Conventions Used Here
 
@@ -449,7 +435,7 @@ Table of Contents
 
    The DNS flags field uses the ordinary DNS bit assignments.  The bits
    used by this document are QR (0x8000), AA (0x0400), TC (0x0200), RD
-   (0x0100), and RA (0x0080).
+   (0x0100), RA (0x0080), and CD (0x0010).
 
    A DNS name in a query is encoded as a sequence of labels.  Each label
    is one length octet, followed by that many bytes.  The name ends with
@@ -473,6 +459,60 @@ Table of Contents
    DNSCrypt certificate carried in a TXT record is reconstructed by
    concatenating those character-string payloads in order, excluding the
    one-byte length fields.
+
+   A successful certificate response echoes the single question and
+   contains zero or more TXT answer records, one certificate per answer
+   record.  A response that does not contain the complete certificate
+   set because of a UDP size limit sets the DNS TC flag.  A successful
+   certificate response uses these DNS header fields:
+
+     +==============+===============================================+
+     | Header field | Value                                         |
+     +==============+===============================================+
+     | ID           | copied from the query                         |
+     +--------------+-----------------------------------------------+
+     | Flags        | QR set, TC set only when truncated, RCODE = 0 |
+     +--------------+-----------------------------------------------+
+     | QDCOUNT      | 1                                             |
+     +--------------+-----------------------------------------------+
+     | ANCOUNT      | number of certificate TXT answers included    |
+     +--------------+-----------------------------------------------+
+     | NSCOUNT      | 0                                             |
+     +--------------+-----------------------------------------------+
+     | ARCOUNT      | 0                                             |
+     +--------------+-----------------------------------------------+
+
+                                 Table 1
+
+   Resolvers MAY set ordinary DNS flags such as AA or RA, and MAY copy
+   RD or CD from the query.  Clients MUST ignore those flags for
+   certificate validation.  A client uses TC only to decide whether to
+   retry the certificate query over TCP or with a larger padded UDP
+   query.
+
+   Each certificate answer is a TXT RR:
+
+        +==========+==============================================+
+        | RR field | Value                                        |
+        +==========+==============================================+
+        | NAME     | 0xc0 0x0c, or the uncompressed question name |
+        +----------+----------------------------------------------+
+        | TYPE     | TXT (0x00 0x10)                              |
+        +----------+----------------------------------------------+
+        | CLASS    | IN (0x00 0x01)                               |
+        +----------+----------------------------------------------+
+        | TTL      | 4-byte DNS TTL; not the certificate validity |
+        +----------+----------------------------------------------+
+        | RDLENGTH | length in bytes of the TXT RDATA             |
+        +----------+----------------------------------------------+
+        | RDATA    | certificate split into TXT character-strings |
+        +----------+----------------------------------------------+
+
+                                  Table 2
+
+   The response does not echo the query's EDNS(0) OPT pseudo-RR.
+   Certificate validity is determined only by <ts-start> and <ts-end>
+   inside the signed certificate, not by the DNS TTL.
 
    When a UDP certificate query uses EDNS(0) padding, the additional
    record is an OPT pseudo-RR.  It has root owner name (0x00), type OPT
@@ -559,12 +599,11 @@ Table of Contents
    encrypted DNSCrypt response.
 
    The client MUST authenticate and, if authentication succeeds, decrypt
-   the response with the help of the resolver's public key, the shared
-   secret, and the response nonce.  The client MUST verify that the
-   <client-nonce> prefix of the response nonce matches a currently
-   outstanding query.  In case the response fails verification, or the
-   <client-nonce> does not match a currently outstanding query, it MUST
-   be disregarded by the client.
+   the response using the derived shared key and the response nonce.
+   The client MUST verify that the <client-nonce> prefix of the response
+   nonce matches a currently outstanding query.  In case the response
+   fails verification, or the <client-nonce> does not match a currently
+   outstanding query, it MUST be disregarded by the client.
 
    If the response has the TC flag set, the client MUST:
 
@@ -739,7 +778,9 @@ Table of Contents
    unencrypted TXT DNS query to the resolver's IP address and DNSCrypt
    port.  A client MAY use UDP or TCP according to local policy.  A
    common strategy is to try UDP first and retry over TCP after failure,
-   timeout, or truncation.
+   timeout, or truncation.  Over TCP, the certificate query and response
+   are DNS messages framed with the two-byte big-endian DNS-over-TCP
+   length prefix [RFC7766]; the prefix is not part of the DNS message.
 
    Resolvers are not required to serve certificates both on UDP and TCP.
 
@@ -830,8 +871,8 @@ Table of Contents
       algorithm and the provider secret key.  Ed25519 MUST be used in
       this version of the protocol.
 
-   *  <resolver-pk>: the resolver short-term public key, which is 32
-      bytes when using X25519.
+   *  <resolver-pk>: the resolver key-exchange public field.  It is 32
+      bytes for Box-XChaChaPoly and 1216 bytes for PQDNSCrypt.
 
    *  <client-magic>: The first 8 bytes of a client query that was built
       using the information from this certificate.  It MAY be a
@@ -865,19 +906,21 @@ Table of Contents
 
    The following encryption systems are defined by this document:
 
-   0x00 0x02, Box-XChaChaPoly:  The resolver public key is 32 bytes, and
-      the client public key in queries is 32 bytes.  The nonce is split
-      into a 12-byte client nonce and a 12-byte resolver nonce.  The
-      shared key is HChaCha20(X25519(pk, sk), 16 NUL bytes).  The
-      certificate extensions field is empty in this revision; unknown
-      extensions are ignored after signature verification.
+   0x00 0x02, Box-XChaChaPoly:  The resolver key-exchange public field
+      is 32 bytes, and the client public key in queries is 32 bytes.
+      The nonce is split into a 12-byte client nonce and a 12-byte
+      resolver nonce.  The shared key is HChaCha20(X25519(pk, sk), 16
+      NUL bytes).  The certificate extensions field is empty in this
+      revision; unknown extensions are ignored after signature
+      verification.
 
-   0x00 0x03, X-Wing PQDNSCrypt:  The resolver public key is 1216 bytes,
-      and the client key-exchange field in queries is 1120 bytes.  The
-      nonce is split into a 12-byte client nonce and a 12-byte resolver
-      nonce.  The shared key is derived with HKDF-SHA256 as defined in
-      "PQ Key Derivation".  The certificate extensions field contains
-      the required 12-byte PQ profile extension.
+   0x00 0x03, X-Wing PQDNSCrypt:  The resolver key-exchange public field
+      is 1216 bytes, and the client key-exchange field in queries is
+      1120 bytes.  The nonce is split into a 12-byte client nonce and a
+      12-byte resolver nonce.  The shared key is derived with HKDF-
+      SHA256 as defined in "PQ Key Derivation".  The certificate
+      extensions field contains the required 12-byte PQ profile
+      extension.
 
    Each TXT answer record carries exactly one certificate blob.  A
    client reads <cert-magic>, <es-version>, and <protocol-minor-version>
@@ -1031,8 +1074,8 @@ Table of Contents
        resolver and not an impostor.
 
    4.  *Short-Term Resolver Keys*: Resolver certificates carry short-
-       term public keys, limiting the impact of key compromise and
-       enabling regular key rotation.
+       term key-exchange public fields, limiting the impact of key
+       compromise and enabling regular key rotation.
 
 8.2.  Implementation Security
 
@@ -1201,7 +1244,8 @@ Table of Contents
    link queries to customer accounts, and unlock business-specific
    features such as redirecting specific domain names to a sinkhole.
 
-   Resolvers accessible from any client IP address can also opt for only
+   For encryption systems where <client-pk> is a client public key,
+   resolvers accessible from any client IP address can also opt for only
    responding to a set of whitelisted public keys.
 
    Resolvers accepting queries from any client MUST accept any client
@@ -1339,8 +1383,7 @@ Table of Contents
 
        *  Reject the inner <dnscrypt-query> if its first 8 bytes are
           0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x01, to avoid protocol
-          confusion with QUIC [RFC9000]; relays MAY reject broader
-          reserved prefixes by local policy
+          confusion with QUIC [RFC9000]
 
    4.  Forward the inner <dnscrypt-query> unmodified to the target
        server over UDP, without the Anonymized DNSCrypt prefix
@@ -1370,10 +1413,65 @@ Table of Contents
    unique-local, documentation, benchmarking, and other special-use
    addresses.
 
-   These relay requirements ensure that anonymization does not
-   compromise the security properties of the underlying DNSCrypt
-   protocol.  Proper deployment requires additional operational
-   considerations.
+   If relay validation fails, the relay MUST NOT forward the inner
+   packet.  For a UDP client, the relay sends no response.  For a TCP
+   client, the relay closes the connection without sending a length-
+   prefixed response.  The same behavior applies to upstream responses
+   that fail validation or exceed the response-size rule.
+
+   The mandatory QUIC-confusion check above is intentionally the exact
+   8-byte value.  The broader rule that <client-magic> MUST NOT start
+   with seven zero bytes is enforced when resolvers issue certificates.
+   A relay cannot classify every inner packet by the first eight bytes
+   alone, because the inner packet can also be an unencrypted
+   certificate query.  Relay operators MAY reject broader reserved
+   prefixes by local policy after first recognizing valid certificate
+   queries.
+
+   A relay recognizes an inner certificate query by parsing it as a DNS
+   message with QR = 0, QDCOUNT = 1, question type TXT, question class
+   IN, and a question name that starts with 2.dnscrypt-cert.. Relays are
+   not required to support non-standard provider names through
+   Anonymized DNSCrypt; clients using such names can retrieve
+   certificates directly from the resolver.
+
+   An encrypted upstream response is valid for relaying if all of these
+   are true:
+
+   *  The response came from the target IP address and port selected by
+      the prefix.
+
+   *  The response is no larger than the inner query forwarded upstream.
+
+   *  The response starts with <resolver-magic>.
+
+   No stronger encrypted-response matching is required at the relay.
+   The relay does not decrypt the packet, does not know the selected
+   certificate, and cannot in general know the offset of <client-nonce>
+   because the <client-pk> length depends on the encryption system and
+   resumed PQ queries use a different shape.  The client performs nonce
+   matching after decryption.
+
+   A certificate upstream response is valid for relaying if all of these
+   are true:
+
+   *  The response came from the target IP address and port selected by
+      the prefix.
+
+   *  The response is no larger than the inner certificate query
+      forwarded upstream.
+
+   *  The response is a DNS response (QR = 1) and has the same
+      transaction ID as the relayed certificate query.
+
+   *  The response contains exactly one question whose name, type, and
+      class match the relayed certificate query.
+
+   *  The matching question name starts with 2.dnscrypt-cert..
+
+   The relay does not need to validate certificate signatures or parse
+   every TXT answer.  The client verifies certificates after receiving
+   the relayed response.
 
 10.4.  Operational Considerations
 
@@ -1393,22 +1491,18 @@ Table of Contents
 
        *  Monitor for abuse
 
-   These operational guidelines help ensure that Anonymized DNSCrypt
-   deployments provide the intended privacy benefits while maintaining
-   security and preventing abuse.
-
 11.  Post-Quantum Key Exchange (PQDNSCrypt)
 
-   The key exchange described so far relies on X25519 [RFC7748], which a
-   sufficiently capable quantum computer would be able to break.  An
-   attacker who records DNSCrypt traffic today could therefore decrypt
-   it once such a computer exists.  This section defines the PQ
-   extension, which performs the key exchange with a hybrid post-quantum
-   mechanism while leaving the rest of the protocol unchanged: the
-   certificate system, the packet framing, the authenticated encryption,
-   the nonces, the padding philosophy, and Anonymized DNSCrypt all carry
-   over.  A DNSCrypt deployment that uses this extension is referred to
-   as PQDNSCrypt.
+   The classical Box-XChaChaPoly encryption system relies on X25519
+   [RFC7748], which a sufficiently capable quantum computer would be
+   able to break.  An attacker who records classical DNSCrypt traffic
+   today could therefore decrypt it once such a computer exists.  This
+   section defines the PQ extension, which performs the key exchange
+   with a hybrid post-quantum mechanism while leaving the rest of the
+   protocol unchanged: the certificate system, the packet framing, the
+   authenticated encryption, the nonces, the padding philosophy, and
+   Anonymized DNSCrypt all carry over.  A DNSCrypt deployment that uses
+   this extension is referred to as PQDNSCrypt.
 
    PQ is introduced as a new encryption system version (<es-version>
    0x00 0x03) inside the existing version 2 certificate format.  It is
@@ -2072,7 +2166,7 @@ Table of Contents
    | <extensions>                  | 0      | empty                   |
    +-------------------------------+--------+-------------------------+
 
-                                 Table 1
+                                 Table 3
 
    <client-magic> is chosen by the resolver and carried in the
    certificate; the client copies it verbatim into the first 8 bytes of
@@ -2147,7 +2241,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
      | 120    | <ts-end>                 | 4      | 68 01 51 80     |
      +--------+--------------------------+--------+-----------------+
 
-                                 Table 2
+                                 Table 4
 
    certificate (124 bytes):
      444e5343000200003a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aab
@@ -2173,7 +2267,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
    exceed the triggering UDP request.
 
    certificate response with one TXT answer (182 bytes):
-     abcd8481000100010000000001320d646e7363727970742d6365727407657861
+     abcd8180000100010000000001320d646e7363727970742d6365727407657861
      6d706c6503636f6d0000100001c00c0010000100015180007d7c444e53430002
      00003a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aabc173a6a49b7a
      49ca55362a6c5dec47657cf515e9f99382a316dfecd964b94d1c4659cac45961
@@ -2199,7 +2293,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
                   | total request length       | 512    |
                   +----------------------------+--------+
 
-                                  Table 3
+                                  Table 5
 
    OPT pseudo-RR:
      00002910000000000001c8000c01c4 || (452 * 00)
@@ -2248,7 +2342,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
      | 52     | <encrypted-query> | 272    | 2d ae ... d5 1d         |
      +--------+-------------------+--------+-------------------------+
 
-                                  Table 4
+                                  Table 6
 
    full query wire (324 bytes):
      b1b2b3b4b5b6b7b879a631eede1bf9c98f12032cdeadd0e7a079398fc786b88c
@@ -2291,7 +2385,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
    | 32     | <encrypted-response> | 80     | f2 67 ... d3 9d         |
    +--------+----------------------+--------+-------------------------+
 
-                                 Table 5
+                                 Table 7
 
    full response wire (112 bytes):
      7236666e76576a38a0a1a2a3a4a5a6a7a8a9aaabc0c1c2c3c4c5c6c7c8c9cacb
@@ -2396,7 +2490,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
    | <profile-extension-hash> | SHA-256(<extensions>), 32 bytes       |
    +--------------------------+---------------------------------------+
 
-                                 Table 6
+                                 Table 8
 
 15.2.  Pinned Inputs
 
@@ -2453,7 +2547,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
     | DNS response              | var    | [dns-response]            |
     +---------------------------+--------+---------------------------+
 
-                                 Table 7
+                                 Table 9
 
 15.3.  Profile Extension and Signature Input
 
@@ -2480,7 +2574,7 @@ signature = Ed25519.Sign(provider signing seed, signed input) (64 bytes):
           | total           |          | 12 bytes               |
           +-----------------+----------+------------------------+
 
-                                  Table 8
+                                  Table 10
 
    The Ed25519 signature is computed over the existing field set,
    unchanged:
@@ -2520,7 +2614,7 @@ signature = Ed25519.Sign(provider-seed, sig-input)  = [signature: 64 bytes]
        | 1308   | <extensions>             | 12     | see below   |
        +--------+--------------------------+--------+-------------+
 
-                                 Table 9
+                                 Table 11
 
    <extensions> is:
 
@@ -2565,7 +2659,7 @@ encrypted-query = tag (16) || ciphertext (64)     = [enc-query: 80 bytes]
      | 1140   | <encrypted-query> | 80     | [enc-query: 80 bytes]   |
      +--------+-------------------+--------+-------------------------+
 
-                                  Table 10
+                                  Table 12
 
 15.5.  Full Response and Ticket Issuance
 
@@ -2609,7 +2703,7 @@ encrypted-response = tag (16) || ciphertext (256)
        | <encrypted-response> | 272    | [enc-response: 272 bytes] |
        +----------------------+--------+---------------------------+
 
-                                  Table 11
+                                  Table 13
 
 15.6.  Resumed Query and Response
 
@@ -2641,7 +2735,7 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
      | 152    | <encrypted-query> | 272    | [enc-query: 272 bytes]  |
      +--------+-------------------+--------+-------------------------+
 
-                                  Table 12
+                                  Table 14
 
    The resumed response reuses resumed shared-key with nonce resumed-
    client-nonce || resumed-resolver-nonce.  If the resolver issues no
@@ -2776,10 +2870,6 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
               FIPS 203, August 2024,
               <https://doi.org/10.6028/NIST.FIPS.203>.
 
-   [RFC1035]  Mockapetris, P., "Domain names - implementation and
-              specification", STD 13, RFC 1035, DOI 10.17487/RFC1035,
-              November 1987, <https://www.rfc-editor.org/info/rfc1035>.
-
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
               DOI 10.17487/RFC2119, March 1997,
@@ -2816,6 +2906,10 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
               Multiplexed and Secure Transport", RFC 9000,
               DOI 10.17487/RFC9000, May 2021,
               <https://www.rfc-editor.org/info/rfc9000>.
+
+   [RFC1035]  Mockapetris, P., "Domain names - implementation and
+              specification", STD 13, RFC 1035, DOI 10.17487/RFC1035,
+              November 1987, <https://www.rfc-editor.org/info/rfc1035>.
 
    [RFC4291]  Hinden, R. and S. Deering, "IP Version 6 Addressing
               Architecture", RFC 4291, DOI 10.17487/RFC4291, February
