@@ -167,22 +167,8 @@ Table of Contents
 
 3.  Protocol Flow
 
-   The DNSCrypt protocol consists of two distinct phases:
-
-   1.  *Initial Setup Phase* (one-time):
-
-       *  The client requests the server's certificate
-
-       *  The server responds with its certificate containing public
-          keys
-
-   2.  *Ongoing Communication Phase* (repeated as needed):
-
-       *  The client sends encrypted DNS queries
-
-       *  The server responds with encrypted DNS responses
-
-   The following diagram illustrates the complete protocol flow:
+   DNSCrypt starts with certificate retrieval and then exchanges
+   encrypted DNS queries and responses:
 
    +--------+                    +--------+
    |        |                    |        |
@@ -216,7 +202,7 @@ Table of Contents
        |                             |
        |                             |
 
-   The initial setup phase (steps 1-2) occurs only when:
+   The client retrieves certificates when:
 
    *  A client first starts using a DNSCrypt server
 
@@ -224,14 +210,8 @@ Table of Contents
 
    *  The client detects a certificate with a higher serial number
 
-   After the initial setup, the client and server engage in the ongoing
-   communication phase (steps 3-8), where encrypted queries and
-   responses are exchanged as needed.  This phase can be repeated
-   indefinitely until the certificate expires or a new certificate is
-   available.
-
-   The ongoing communication phase operates with several important
-   characteristics that distinguish it from traditional DNS:
+   After selecting a certificate, every encrypted query and response is
+   self-contained:
 
    1.  *Stateless Operation*: Each query and response is independent.
        The server does not maintain state between queries.
@@ -349,7 +329,7 @@ Table of Contents
    |                         Client Magic                          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                                                               |
-   +                      Client Public Key                        +
+   +                    Client Key-Exchange Value                  +
    |                                                               |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                                                               |
@@ -512,33 +492,28 @@ Table of Contents
    The resolver sends back a collection of signed certificates that the
    client MUST verify using the pre-distributed provider public key.
    Each certificate includes a validity period, a serial number, a
-   version that defines a key exchange mechanism, an authenticated
-   encryption algorithm and its parameters, as well as a short-term
-   public key, known as the resolver public key.
+   version that defines the key-exchange and authenticated-encryption
+   system, and the resolver key-exchange public field for that system.
 
-   Resolvers have the ability to support various algorithms and can
-   concurrently advertise multiple short-term public keys (resolver
-   public keys).  The client selects one of the currently valid
-   certificates according to the certificate selection rules below.
+   Resolvers can concurrently advertise multiple encryption systems and
+   multiple short-term resolver key-exchange public fields.  The client
+   selects one of the currently valid certificates according to the
+   certificate selection rules below.
 
    Every certificate contains a unique magic number that the client MUST
    include at the beginning of their queries.  This allows the resolver
    to identify which certificate the client selected for crafting a
    particular query.
 
-   The encryption algorithm, resolver public key, and client magic
-   number from the chosen certificate are then used by the client to
-   send encrypted queries.  These queries include the <client-pk> key-
-   exchange field.
+   The encryption system, resolver key-exchange public field, and client
+   magic number from the chosen certificate are then used by the client
+   to send encrypted queries.  These queries include the <client-pk>
+   key-exchange field.
 
    With the chosen certificate, the corresponding resolver secret key,
    and the query's <client-pk> field, the resolver is able to verify and
    decrypt the query, then encrypt the response with the same
    parameters.
-
-   Once the session is established through certificate exchange, the
-   ongoing query processing follows specific rules for different
-   transport protocols and padding requirements.
 
 5.5.  Query Processing
 
@@ -728,11 +703,6 @@ Table of Contents
    Unlike UDP responses, TCP responses MUST be sent unmodified even if
    their encrypted length exceeds the encrypted query length.
 
-   The query and response processing rules described above depend on the
-   certificate information obtained during session establishment.  The
-   certificate format and management procedures are critical to the
-   protocol's security.
-
 5.6.  Certificates
 
    The following diagram shows the structure of a DNSCrypt certificate:
@@ -749,7 +719,7 @@ Table of Contents
    |                                                               |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                                                               |
-   +                      Resolver Public Key                      +
+   +                  Resolver Key-Exchange Field                  +
    |                                                               |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                        Client Magic                           |
@@ -1035,10 +1005,6 @@ Table of Contents
    dnscrypt.info implementations (https://dnscrypt.info/
    implementations).
 
-   The successful deployment of multiple interoperable implementations
-   demonstrates the protocol's maturity.  However, proper implementation
-   requires careful attention to security considerations.
-
 8.  Security Considerations
 
 8.1.  Protocol Security
@@ -1067,10 +1033,6 @@ Table of Contents
    4.  *Short-Term Resolver Keys*: Resolver certificates carry short-
        term public keys, limiting the impact of key compromise and
        enabling regular key rotation.
-
-   These fundamental security properties depend on correct
-   implementation practices.  Several implementation-specific security
-   aspects require particular attention.
 
 8.2.  Implementation Security
 
@@ -1164,10 +1126,6 @@ Table of Contents
        outstanding-query state and request deadlines, without exposing
        timestamps in plaintext nonce values.
 
-   While DNSCrypt effectively mitigates these attacks, implementers
-   should also be aware of privacy considerations that extend beyond
-   basic protocol security.
-
 8.4.  Privacy Considerations
 
    While DNSCrypt encrypts DNS traffic, there are some privacy
@@ -1191,9 +1149,6 @@ Table of Contents
    4.  *Certificate Requests*: Initial certificate requests are
        unencrypted but only return public data.  This is a one-time
        exposure per session.
-
-   These privacy considerations complement the security measures and
-   should inform operational practices for DNSCrypt deployments.
 
 8.5.  Operational Security
 
@@ -1235,11 +1190,6 @@ Table of Contents
        *  Unusual query patterns
 
        *  Certificate request anomalies
-
-   These operational security practices work together with the technical
-   security measures to provide comprehensive protection.  Additional
-   operational considerations extend beyond security to include
-   practical deployment aspects.
 
 9.  Operational Considerations
 
@@ -1284,11 +1234,6 @@ Table of Contents
    operation for each query.  This makes the computational overhead of
    classical DNSCrypt negligible compared to plain DNS.
 
-   While DNSCrypt provides strong encryption and authentication, some
-   use cases require additional privacy protection.  The Anonymized
-   DNSCrypt extension addresses scenarios where hiding client IP
-   addresses from resolvers is necessary.
-
 10.  Anonymized DNSCrypt
 
    While DNSCrypt encrypts DNS traffic, DNS server operators can still
@@ -1296,9 +1241,6 @@ Table of Contents
    the DNSCrypt protocol that allows queries and responses to be relayed
    by an intermediate server, hiding the client's IP address from the
    resolver.
-
-   This extension maintains all the security properties of standard
-   DNSCrypt while adding an additional layer of privacy protection.
 
 10.1.  Protocol Overview
 

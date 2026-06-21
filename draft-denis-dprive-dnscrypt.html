@@ -1409,33 +1409,9 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
       <h2 id="name-protocol-flow">
 <a href="#section-3" class="section-number selfRef">3. </a><a href="#name-protocol-flow" class="section-name selfRef">Protocol Flow</a>
       </h2>
-<p id="section-3-1">The DNSCrypt protocol consists of two distinct phases:<a href="#section-3-1" class="pilcrow">¶</a></p>
-<ol start="1" type="1" class="normal type-1" id="section-3-2">
-<li id="section-3-2.1">
-          <p id="section-3-2.1.1"><strong>Initial Setup Phase</strong> (one-time):<a href="#section-3-2.1.1" class="pilcrow">¶</a></p>
-<ul class="normal">
-<li class="normal" id="section-3-2.1.2.1">
-              <p id="section-3-2.1.2.1.1">The client requests the server's certificate<a href="#section-3-2.1.2.1.1" class="pilcrow">¶</a></p>
-</li>
-            <li class="normal" id="section-3-2.1.2.2">
-              <p id="section-3-2.1.2.2.1">The server responds with its certificate containing public keys<a href="#section-3-2.1.2.2.1" class="pilcrow">¶</a></p>
-</li>
-          </ul>
-</li>
-        <li id="section-3-2.2">
-          <p id="section-3-2.2.1"><strong>Ongoing Communication Phase</strong> (repeated as needed):<a href="#section-3-2.2.1" class="pilcrow">¶</a></p>
-<ul class="normal">
-<li class="normal" id="section-3-2.2.2.1">
-              <p id="section-3-2.2.2.1.1">The client sends encrypted DNS queries<a href="#section-3-2.2.2.1.1" class="pilcrow">¶</a></p>
-</li>
-            <li class="normal" id="section-3-2.2.2.2">
-              <p id="section-3-2.2.2.2.1">The server responds with encrypted DNS responses<a href="#section-3-2.2.2.2.1" class="pilcrow">¶</a></p>
-</li>
-          </ul>
-</li>
-      </ol>
-<p id="section-3-3">The following diagram illustrates the complete protocol flow:<a href="#section-3-3" class="pilcrow">¶</a></p>
-<div class="alignLeft art-text artwork" id="section-3-4">
+<p id="section-3-1">DNSCrypt starts with certificate retrieval and then exchanges encrypted DNS
+queries and responses:<a href="#section-3-1" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3-2">
 <pre>
 +--------+                    +--------+
 |        |                    |        |
@@ -1468,31 +1444,31 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
     |&lt;----------------------------|
     |                             |
     |                             |
-</pre><a href="#section-3-4" class="pilcrow">¶</a>
+</pre><a href="#section-3-2" class="pilcrow">¶</a>
 </div>
-<p id="section-3-5">The initial setup phase (steps 1-2) occurs only when:<a href="#section-3-5" class="pilcrow">¶</a></p>
+<p id="section-3-3">The client retrieves certificates when:<a href="#section-3-3" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-3-6.1">
-          <p id="section-3-6.1.1">A client first starts using a DNSCrypt server<a href="#section-3-6.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-3-4.1">
+          <p id="section-3-4.1.1">A client first starts using a DNSCrypt server<a href="#section-3-4.1.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-3-6.2">
-          <p id="section-3-6.2.1">The client's cached certificate expires<a href="#section-3-6.2.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-3-4.2">
+          <p id="section-3-4.2.1">The client's cached certificate expires<a href="#section-3-4.2.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-3-6.3">
-          <p id="section-3-6.3.1">The client detects a certificate with a higher serial number<a href="#section-3-6.3.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-3-4.3">
+          <p id="section-3-4.3.1">The client detects a certificate with a higher serial number<a href="#section-3-4.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-3-7">After the initial setup, the client and server engage in the ongoing communication phase (steps 3-8), where encrypted queries and responses are exchanged as needed. This phase can be repeated indefinitely until the certificate expires or a new certificate is available.<a href="#section-3-7" class="pilcrow">¶</a></p>
-<p id="section-3-8">The ongoing communication phase operates with several important characteristics that distinguish it from traditional DNS:<a href="#section-3-8" class="pilcrow">¶</a></p>
-<ol start="1" type="1" class="normal type-1" id="section-3-9">
-<li id="section-3-9.1">
-          <p id="section-3-9.1.1"><strong>Stateless Operation</strong>: Each query and response is independent. The server does not maintain state between queries.<a href="#section-3-9.1.1" class="pilcrow">¶</a></p>
+<p id="section-3-5">After selecting a certificate, every encrypted query and response is
+self-contained:<a href="#section-3-5" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-6">
+<li id="section-3-6.1">
+          <p id="section-3-6.1.1"><strong>Stateless Operation</strong>: Each query and response is independent. The server does not maintain state between queries.<a href="#section-3-6.1.1" class="pilcrow">¶</a></p>
 </li>
-        <li id="section-3-9.2">
-          <p id="section-3-9.2.1"><strong>Out-of-Order Responses</strong>: Responses may arrive in a different order than the queries were sent. Each response is self-contained and can be processed independently.<a href="#section-3-9.2.1" class="pilcrow">¶</a></p>
+        <li id="section-3-6.2">
+          <p id="section-3-6.2.1"><strong>Out-of-Order Responses</strong>: Responses may arrive in a different order than the queries were sent. Each response is self-contained and can be processed independently.<a href="#section-3-6.2.1" class="pilcrow">¶</a></p>
 </li>
-        <li id="section-3-9.3">
-          <p id="section-3-9.3.1"><strong>Concurrent Queries</strong>: A client can send multiple queries without waiting for earlier responses, and responses can be processed independently as they arrive.<a href="#section-3-9.3.1" class="pilcrow">¶</a></p>
+        <li id="section-3-6.3">
+          <p id="section-3-6.3.1"><strong>Concurrent Queries</strong>: A client can send multiple queries without waiting for earlier responses, and responses can be processed independently as they arrive.<a href="#section-3-6.3.1" class="pilcrow">¶</a></p>
 </li>
       </ol>
 </section>
@@ -1589,7 +1565,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 |                         Client Magic                          |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
-+                      Client Public Key                        +
++                    Client Key-Exchange Value                  +
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
@@ -1753,12 +1729,11 @@ For DNSCrypt certificate queries these padding bytes are NUL bytes.<a href="#sec
 <a href="#section-5.4" class="section-number selfRef">5.4. </a><a href="#name-session-establishment" class="section-name selfRef">Session Establishment</a>
         </h3>
 <p id="section-5.4-1">From the client's perspective, a DNSCrypt session is initiated when the client sends an unauthenticated DNS query to a DNSCrypt-capable resolver. This DNS query contains the major protocol version and a public identifier of the desired provider.<a href="#section-5.4-1" class="pilcrow">¶</a></p>
-<p id="section-5.4-2">The resolver sends back a collection of signed certificates that the client <span class="bcp14">MUST</span> verify using the pre-distributed provider public key. Each certificate includes a validity period, a serial number, a version that defines a key exchange mechanism, an authenticated encryption algorithm and its parameters, as well as a short-term public key, known as the resolver public key.<a href="#section-5.4-2" class="pilcrow">¶</a></p>
-<p id="section-5.4-3">Resolvers have the ability to support various algorithms and can concurrently advertise multiple short-term public keys (resolver public keys). The client selects one of the currently valid certificates according to the certificate selection rules below.<a href="#section-5.4-3" class="pilcrow">¶</a></p>
+<p id="section-5.4-2">The resolver sends back a collection of signed certificates that the client <span class="bcp14">MUST</span> verify using the pre-distributed provider public key. Each certificate includes a validity period, a serial number, a version that defines the key-exchange and authenticated-encryption system, and the resolver key-exchange public field for that system.<a href="#section-5.4-2" class="pilcrow">¶</a></p>
+<p id="section-5.4-3">Resolvers can concurrently advertise multiple encryption systems and multiple short-term resolver key-exchange public fields. The client selects one of the currently valid certificates according to the certificate selection rules below.<a href="#section-5.4-3" class="pilcrow">¶</a></p>
 <p id="section-5.4-4">Every certificate contains a unique magic number that the client <span class="bcp14">MUST</span> include at the beginning of their queries. This allows the resolver to identify which certificate the client selected for crafting a particular query.<a href="#section-5.4-4" class="pilcrow">¶</a></p>
-<p id="section-5.4-5">The encryption algorithm, resolver public key, and client magic number from the chosen certificate are then used by the client to send encrypted queries. These queries include the <code>&lt;client-pk&gt;</code> key-exchange field.<a href="#section-5.4-5" class="pilcrow">¶</a></p>
+<p id="section-5.4-5">The encryption system, resolver key-exchange public field, and client magic number from the chosen certificate are then used by the client to send encrypted queries. These queries include the <code>&lt;client-pk&gt;</code> key-exchange field.<a href="#section-5.4-5" class="pilcrow">¶</a></p>
 <p id="section-5.4-6">With the chosen certificate, the corresponding resolver secret key, and the query's <code>&lt;client-pk&gt;</code> field, the resolver is able to verify and decrypt the query, then encrypt the response with the same parameters.<a href="#section-5.4-6" class="pilcrow">¶</a></p>
-<p id="section-5.4-7">Once the session is established through certificate exchange, the ongoing query processing follows specific rules for different transport protocols and padding requirements.<a href="#section-5.4-7" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="query-processing">
@@ -1873,7 +1848,6 @@ transactions over the same TCP connection.<a href="#section-5.5.4-4" class="pilc
 <p id="section-5.5.7-1">The resolver <span class="bcp14">MUST</span> authenticate and decrypt client queries as described for UDP. Queries that cannot be authenticated, decrypted, unpadded, or parsed as DNS messages <span class="bcp14">MUST</span> be ignored.<a href="#section-5.5.7-1" class="pilcrow">¶</a></p>
 <p id="section-5.5.7-2">Responses sent over TCP <span class="bcp14">MUST</span> be padded as described in "Padding For Resolver Responses" and encrypted as <code>&lt;dnscrypt-response&gt;</code>. The complete encrypted response packet is then prefixed with a two-byte big-endian length.<a href="#section-5.5.7-2" class="pilcrow">¶</a></p>
 <p id="section-5.5.7-3">Cleartext DNS response payloads are not prefixed by their length before encryption, even when the DNSCrypt packet is sent over TCP. Unlike UDP responses, TCP responses <span class="bcp14">MUST</span> be sent unmodified even if their encrypted length exceeds the encrypted query length.<a href="#section-5.5.7-3" class="pilcrow">¶</a></p>
-<p id="section-5.5.7-4">The query and response processing rules described above depend on the certificate information obtained during session establishment. The certificate format and management procedures are critical to the protocol's security.<a href="#section-5.5.7-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1898,7 +1872,7 @@ transactions over the same TCP connection.<a href="#section-5.5.4-4" class="pilc
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
-+                      Resolver Public Key                      +
++                  Resolver Key-Exchange Field                  +
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                        Client Magic                           |
@@ -2091,7 +2065,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
       </h2>
 <p id="section-7-1"><em>Note: This section is to be removed before publishing as an RFC.</em><a href="#section-7-1" class="pilcrow">¶</a></p>
 <p id="section-7-2">Multiple implementations of the protocol described in this document have been developed and verified for interoperability. A comprehensive list of known implementations can be found at <a href="https://dnscrypt.info/implementations">dnscrypt.info implementations</a>.<a href="#section-7-2" class="pilcrow">¶</a></p>
-<p id="section-7-3">The successful deployment of multiple interoperable implementations demonstrates the protocol's maturity. However, proper implementation requires careful attention to security considerations.<a href="#section-7-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="security-considerations">
@@ -2119,7 +2092,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
             <p id="section-8.1-2.4.1"><strong>Short-Term Resolver Keys</strong>: Resolver certificates carry short-term public keys, limiting the impact of key compromise and enabling regular key rotation.<a href="#section-8.1-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ol>
-<p id="section-8.1-3">These fundamental security properties depend on correct implementation practices. Several implementation-specific security aspects require particular attention.<a href="#section-8.1-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="implementation-security">
@@ -2220,7 +2192,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
             <p id="section-8.3-2.4.1"><strong>Replay Exposure Reduction</strong>: Nonces make responses query-specific. Clients can discard late, duplicate, or unrelated responses by checking the returned <code>&lt;client-nonce&gt;</code> against local outstanding-query state and request deadlines, without exposing timestamps in plaintext nonce values.<a href="#section-8.3-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ol>
-<p id="section-8.3-3">While DNSCrypt effectively mitigates these attacks, implementers should also be aware of privacy considerations that extend beyond basic protocol security.<a href="#section-8.3-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="privacy-considerations">
@@ -2243,7 +2214,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
             <p id="section-8.4-2.4.1"><strong>Certificate Requests</strong>: Initial certificate requests are unencrypted but only return public data. This is a one-time exposure per session.<a href="#section-8.4-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ol>
-<p id="section-8.4-3">These privacy considerations complement the security measures and should inform operational practices for DNSCrypt deployments.<a href="#section-8.4-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="operational-security">
@@ -2310,7 +2280,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
             </ul>
 </li>
         </ol>
-<p id="section-8.5-3">These operational security practices work together with the technical security measures to provide comprehensive protection. Additional operational considerations extend beyond security to include practical deployment aspects.<a href="#section-8.5-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -2327,7 +2296,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
 <p id="section-9-5">Resolvers <span class="bcp14">MUST</span> rotate each short-term key pair every 24 hours at most. After a key rotation, a resolver <span class="bcp14">MUST</span> continue accepting queries for every unexpired certificate it still serves, which requires retaining the corresponding resolver secret keys. Once all certificates for an old resolver key have expired or been withdrawn, the resolver <span class="bcp14">MUST</span> discard that old secret key. If an old resolver key is believed to be compromised, the resolver <span class="bcp14">MUST</span> withdraw the related certificates and discard the key instead of continuing to accept it.<a href="#section-9-5" class="pilcrow">¶</a></p>
 <p id="section-9-6">Provider public keys <span class="bcp14">MAY</span> be published as DNSSEC-signed <code>TXT</code> records <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span>, in the same zone as the provider name. For example, a query for the <code>TXT</code> type on the name <code>"2.pubkey.example.com"</code> may return a signed record containing a hexadecimal-encoded provider public key for the provider name <code>"2.dnscrypt-cert.example.com"</code>.<a href="#section-9-6" class="pilcrow">¶</a></p>
 <p id="section-9-7">For encryption systems where clients reuse a key pair, servers are encouraged to cache shared keys instead of performing the X25519 operation for each query. This makes the computational overhead of classical DNSCrypt negligible compared to plain DNS.<a href="#section-9-7" class="pilcrow">¶</a></p>
-<p id="section-9-8">While DNSCrypt provides strong encryption and authentication, some use cases require additional privacy protection. The Anonymized DNSCrypt extension addresses scenarios where hiding client IP addresses from resolvers is necessary.<a href="#section-9-8" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="anonymized-dnscrypt">
@@ -2336,7 +2304,6 @@ the required 12-byte PQ profile extension.<a href="#section-5.6-24.4.1" class="p
 <a href="#section-10" class="section-number selfRef">10. </a><a href="#name-anonymized-dnscrypt" class="section-name selfRef">Anonymized DNSCrypt</a>
       </h2>
 <p id="section-10-1">While DNSCrypt encrypts DNS traffic, DNS server operators can still observe client IP addresses. Anonymized DNSCrypt is an extension to the DNSCrypt protocol that allows queries and responses to be relayed by an intermediate server, hiding the client's IP address from the resolver.<a href="#section-10-1" class="pilcrow">¶</a></p>
-<p id="section-10-2">This extension maintains all the security properties of standard DNSCrypt while adding an additional layer of privacy protection.<a href="#section-10-2" class="pilcrow">¶</a></p>
 <div id="protocol-overview">
 <section id="section-10.1">
         <h3 id="name-protocol-overview">
