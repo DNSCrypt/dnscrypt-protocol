@@ -304,7 +304,8 @@ class DNSCryptReferenceTests(unittest.TestCase):
         self.assertLessEqual(len(served), len(padded))
         self.assertEqual(d.relay_certificate_response(padded, served), served)
 
-        # An unpadded query is too small: the PQ certificate is withheld with TC set.
+        # An unpadded query is too small for the PQ certificate: return the
+        # classical certificate with TC set, matching deployed resolvers.
         small = d.certificate_query(provider_name)
         truncated = d.serve_certificates(small, [classical], [pq], over_udp=True)
         self.assertEqual(truncated[6:8], b"\x00\x01")  # classical only

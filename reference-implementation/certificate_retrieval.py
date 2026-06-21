@@ -162,13 +162,14 @@ def serve_certificates(
 ) -> bytes:
     """Answer a certificate query under the anti-amplification rule.
 
-    The small classical certificates are always returned. The large PQ
-    certificates are added only when the complete response still fits within the
-    request that triggered it, because over UDP a response MUST NOT be larger than
-    its request, or a spoofed query would be amplified. When the PQ certificates do
-    not fit, the response carries only the classical certificates with the TC bit
-    set and a PQ-capable client retries over TCP. Over TCP the handshake validates
-    the source, so the PQ certificates are always included.
+    The classical certificate is always returned for compatibility with deployed
+    DNSCrypt v2 clients and resolvers. The large PQ certificates are added over
+    UDP only when the complete response still fits within the request that
+    triggered it, because otherwise a spoofed query could amplify traffic. When
+    the PQ certificates do not fit, the response carries the classical
+    certificates with the TC bit set and a PQ-capable client retries over TCP.
+    Over TCP the handshake validates the source, so all certificates are always
+    included.
     """
 
     full = build_certificate_response(
