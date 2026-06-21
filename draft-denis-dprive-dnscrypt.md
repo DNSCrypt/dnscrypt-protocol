@@ -127,9 +127,9 @@ Definitions for client queries:
 - `<resolver-pk>`: the resolver's public key.
 - `<client-nonce>`: a unique query identifier for a given (`<client-sk>`, `<resolver-pk>`) tuple. Every newly encrypted DNSCrypt query for the same (`<client-sk>`, `<resolver-pk>`) tuple MUST use a distinct `<client-nonce>` value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of `<client-nonce>` is determined by the chosen encryption algorithm.
 - `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
-- `<encrypted-query>`: `AE(<shared-key> <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
+- `<encrypted-query>`: `AE(<shared-key>, <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered.
+- `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered. The DNS-over-TCP two-byte length prefix is transport framing and is not part of the plaintext encrypted by DNSCrypt.
 - `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes. For `<es-version>` `0x00 0x02`, the encryption algorithm uses a 24-byte nonce, so `<client-nonce>` is 12 bytes and `<client-nonce-pad>` is the remaining 12 NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
@@ -145,7 +145,7 @@ Definitions for server responses:
 - `AE`: the authenticated encryption function. For the encryption systems defined in this document, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
 - `<encrypted-response>`: `AE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
-- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered.
+- `<resolver-response>`: the unencrypted resolver response. The response is not modified; in particular, the query flags are not altered. The DNS-over-TCP two-byte length prefix is transport framing and is not part of the plaintext encrypted by DNSCrypt.
 - `<resolver-response-pad>`: the variable-length padding.
 
 The following diagram shows the structure of a DNSCrypt query packet:
@@ -302,11 +302,44 @@ or
 
 The sole differences between encrypted client queries transmitted via TCP and those sent using UDP lie in the padding length calculation and the inclusion of a two-byte big-endian length prefix for the encrypted DNSCrypt packet.
 
+Cleartext DNS query payloads are not prefixed by their length before encryption, even when the DNSCrypt packet is sent over TCP. The two-byte TCP length prefix is added after encryption and covers the complete `<dnscrypt-query>` packet.
+
 Unlike UDP queries, a query sent over TCP can be shorter than the response.
 
 After having received a response from the resolver, the client and the resolver MUST close the TCP connection to ensure security and comply with this revision of the protocol, which prohibits multiple transactions over the same TCP connection.
 
-The query processing rules described above depend on the certificate information obtained during session establishment. The certificate format and management procedures are critical to the protocol's security.
+### Padding For Resolver Responses
+
+Before encryption takes place, responses are padded according to the ISO/IEC 7816-4 format. Padding begins with a single byte holding the value `0x80`, followed by any number of `NUL` bytes.
+
+The total length of `<resolver-response>` `<resolver-response-pad>` MUST be a multiple of 64 bytes.
+
+The length of `<resolver-response-pad>` MUST be between 1 and 256 bytes, including the initial `0x80` byte. For a given response, that padding length MUST be deterministic for at least one of these tuples:
+
+- `(<resolver-sk>, <client-nonce>)`
+- `(<shared-key>, <client-nonce>)`
+
+A resolver can satisfy this requirement with a pseudorandom function. The requirement prevents response padding from becoming an extra source of linkable server behavior while still allowing stateless operation.
+
+### Resolver Responses Over UDP
+
+The resolver MUST authenticate and decrypt client queries before forwarding them to the upstream DNS resolution path. Queries that cannot be authenticated, decrypted, unpadded, or parsed as DNS messages MUST be ignored.
+
+Any client-supplied nonce value MUST be accepted for decryption. A resolver MAY ignore or refuse queries encrypted with client public keys that are not authorized by local policy, but a public resolver that accepts anonymous clients MUST accept arbitrary client public keys.
+
+Responses sent over UDP MUST be padded as described in "Padding For Resolver Responses" and encrypted as `<dnscrypt-response>`.
+
+If the full client query packet is shorter than 256 bytes, or shorter than the full encrypted response packet, the resolver MAY truncate the DNS response and set the DNS `TC` flag before padding and encryption. The encrypted DNSCrypt response sent over UDP SHOULD be equal to or shorter than the encrypted DNSCrypt query packet that triggered it.
+
+### Resolver Responses Over TCP
+
+The resolver MUST authenticate and decrypt client queries as described for UDP. Queries that cannot be authenticated, decrypted, unpadded, or parsed as DNS messages MUST be ignored.
+
+Responses sent over TCP MUST be padded as described in "Padding For Resolver Responses" and encrypted as `<dnscrypt-response>`. The complete encrypted response packet is then prefixed with a two-byte big-endian length.
+
+Cleartext DNS response payloads are not prefixed by their length before encryption, even when the DNSCrypt packet is sent over TCP. Unlike UDP responses, TCP responses MUST be sent unmodified even if their encrypted length exceeds the encrypted query length.
+
+The query and response processing rules described above depend on the certificate information obtained during session establishment. The certificate format and management procedures are critical to the protocol's security.
 
 ## Certificates
 
@@ -318,7 +351,7 @@ The following diagram shows the structure of a DNSCrypt certificate:
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                         Cert Magic                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    ES Version    |  Protocol Minor Version    |   Reserved    |
+|          ES Version           |    Protocol Minor Version     |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                                                               |
 +                         Signature                             +
@@ -409,6 +442,31 @@ or
 
 The certificate management system ensures that cryptographic keys remain fresh and that clients can smoothly transition to updated certificates. With the core protocol mechanics now established, we can examine implementation considerations.
 
+# Conformance Checklist
+
+A conformant DNSCrypt v2 client implementation has enough information in this document to:
+
+- Build and parse DNS wire-format `TXT` certificate queries for `2.dnscrypt-cert.<zone>`, retrying over TCP after timeout, failure, or truncation.
+- Reconstruct certificates from DNS `TXT` character-strings, verify the Ed25519 signature with the configured provider public key, reject unsupported or invalid certificates, and choose the highest-serial valid certificate for a supported encryption system.
+- Generate a client key pair and a unique `<client-nonce>` for each newly encrypted query under the same client secret key and resolver public key.
+- Pad DNS queries with ISO/IEC 7816-4 padding, encrypt them with the selected certificate parameters, and send exactly one `<dnscrypt-query>` per UDP datagram or one length-prefixed packet per TCP connection.
+- Authenticate responses, verify that the returned nonce starts with an outstanding `<client-nonce>`, remove padding, and forward the unmodified DNS response to the caller.
+- Retry over TCP when an authenticated UDP response carries the DNS `TC` flag, and maintain `<min-query-len>` as specified for later UDP queries.
+
+A conformant DNSCrypt v2 resolver implementation has enough information in this document to:
+
+- Generate, sign, serve, rotate, and retire resolver certificates without using the long-term provider key for query traffic.
+- Select the certificate matching an incoming `<client-magic>`, derive the shared key from the client public key, authenticate and decrypt the query, reject bad padding or malformed DNS payloads silently, and forward the unmodified DNS query to the resolver path.
+- Pad, encrypt, and frame responses using the nonce `(<client-nonce> <resolver-nonce>)`, respecting the UDP anti-amplification guidance and the TCP length-prefix rules.
+- Serve certificate responses over UDP only when the response is no larger than the triggering request, otherwise setting `TC` and relying on TCP as described above.
+
+A conformant Anonymized DNSCrypt relay implementation has enough information in this document to:
+
+- Accept length-prefixed TCP and unframed UDP Anonymized DNSCrypt queries.
+- Validate the target address, target port, and inner query prefix before forwarding.
+- Forward the inner query to the target resolver over UDP without decrypting or modifying it.
+- Forward only valid upstream responses that match the relayed query and do not violate the response-size rule, adding only TCP framing when returning a response to a TCP client.
+
 # Implementation Status
 
 *Note: This section is to be removed before publishing as an RFC.*
@@ -425,9 +483,9 @@ This section discusses security considerations for the DNSCrypt protocol.
 
 The DNSCrypt protocol provides several security benefits:
 
-1. **Confidentiality**: DNS queries and responses are encrypted using XChaCha20-Poly1305 {{!RFC8439}}, preventing eavesdropping of DNS traffic. For example, a query for "example.com" would be encrypted and appear as random data to an observer.
+1. **Confidentiality**: DNS queries and responses are encrypted using the `XChaCha20_DJB-Poly1305` construction defined in Appendix 1, preventing eavesdropping of DNS traffic. For example, a query for "example.com" would be encrypted and appear as random data to an observer.
 
-2. **Integrity**: Message authentication using Poly1305 {{!RFC8439}} ensures that responses cannot be tampered with in transit. Any modification to the encrypted response would be detected and rejected by the client.
+2. **Integrity**: Message authentication using the Poly1305 tag in Appendix 1 ensures that responses cannot be tampered with in transit. Any modification to the encrypted response would be detected and rejected by the client.
 
 3. **Authentication**: The use of X25519 {{!RFC7748}} for key exchange and Ed25519 for certificate signatures provides strong authentication of resolvers. Clients can verify they are communicating with the intended resolver and not an impostor.
 
@@ -592,7 +650,7 @@ Where:
 - `<anon-magic>`: `0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0x00 0x00`
 - `<server-ip>`: 16 bytes encoded IPv6 address (IPv4 addresses are mapped to IPv6 using `::ffff:<ipv4 address>` {{!RFC4291}})
 - `<server-port>`: 2 bytes in big-endian format
-- `<dnscrypt-query>`: standard DNSCrypt query
+- `<dnscrypt-query>`: either a standard encrypted DNSCrypt query or the unencrypted `TXT` certificate query used to retrieve resolver certificates.
 
 For example, a query for a server at 192.0.2.1:443 would be prefixed with:
 
@@ -602,25 +660,27 @@ For example, a query for a server at 192.0.2.1:443 would be prefixed with:
 0xff 0xff 0xc0 0x00 0x02 0x01 0x01 0xbb
 ~~~
 
+An Anonymized DNSCrypt query sent over UDP is sent as this exact byte string. An Anonymized DNSCrypt query sent over TCP is prefixed with a two-byte big-endian length that covers the complete `<anondnscrypt-query>` byte string. The relay removes the TCP length prefix before validating the packet and adds a new TCP length prefix when returning the upstream response to a TCP client.
+
 ## Relay Behavior
 
 Relays MUST:
 
 1. Accept queries over both TCP and UDP
-2. Communicate with upstream servers over UDP, even if client queries were sent over TCP
+2. Communicate with upstream servers over UDP, even if client queries were sent to the relay over TCP
 3. Validate incoming packets:
 
-   - Check that the target IP is not in a private range {{!RFC1918}}
+   - Check that the target IP is not in a private, loopback, link-local, multicast, unspecified, or otherwise locally routed range
    - Verify the port number is in an allowed range
-   - Ensure the DNSCrypt query doesn't start with `<anon-magic>`
-   - Verify the query doesn't start with 7 zero bytes (to avoid confusion with QUIC {{!RFC9000}})
-4. Forward valid queries unmodified to the server
+   - Ensure the inner `<dnscrypt-query>` doesn't start with `<anon-magic>`
+   - Verify the inner `<dnscrypt-query>` doesn't start with 7 zero bytes (to avoid confusion with QUIC {{!RFC9000}})
+4. Forward the inner `<dnscrypt-query>` unmodified to the target server over UDP, without the Anonymized DNSCrypt prefix
 5. Verify server responses:
 
-   - For encrypted DNSCrypt responses, check that the response is smaller than the query
-   - For certificate responses, check that the response transaction ID and query name match the relayed certificate query
+   - For encrypted DNSCrypt responses, check that the response is smaller than the inner query packet forwarded upstream
+   - For certificate responses, check that the response transaction ID and query name match the relayed certificate query, and that the response is no larger than the inner query packet forwarded upstream
    - Validate the response format (either starts with resolver magic or is a certificate response)
-   - Forward valid responses unmodified to the client
+   - Forward valid responses unmodified to the client, adding only the TCP length prefix when the client connection used TCP
 
 These relay requirements ensure that anonymization does not compromise the security properties of the underlying DNSCrypt protocol. Proper deployment requires additional operational considerations.
 
@@ -898,15 +958,16 @@ XChaCha20 is a stream cipher and offers no integrity guarantees without being co
 
 `XChaCha20_DJB-Poly1305` adds an authentication tag to the ciphertext encrypted with `XChaCha20_DJB`. It is the combined mode used by the NaCl `secretbox` and `crypto_box` constructions, instantiated with `XChaCha20_DJB`. The one-time Poly1305 key is taken from the start of the keystream, and the message is encrypted with the keystream that immediately follows it. No separate keystream block is reserved for the Poly1305 key, so this layout differs from the AEAD of {{!RFC8439}}, where the message starts at block counter 1 and the rest of the first keystream block is discarded.
 
-Concretely, for a key `<k>` and a message `<m>`:
+Concretely, for a key `<k>`, nonce `<n>`, and message `<m>`:
 
 - `<k>`: encryption key
+- `<n>`: 24-byte nonce
 - `<m>`: message to encrypt
-- `<keystream>`: the `XChaCha20_DJB` keystream produced from `<k>` and the 24-byte nonce, starting at block counter 0.
+- `<keystream>`: the `XChaCha20_DJB` keystream produced from `<k>` and `<n>`, starting at block counter 0.
 - `<poly-key>`: `<keystream>[0..32]`, the one-time Poly1305 key. These bytes are not transmitted.
 - `<ct>`: `<m>` XOR `<keystream>[32..32 + length(<m>)]`, the ciphertext.
 - `<tag>`: `Poly1305(<poly-key>, <ct>)`, the 16-byte tag.
-- `XChaCha20_DJB-Poly1305(<k>, <m>)`: `<tag> || <ct>`
+- `XChaCha20_DJB-Poly1305(<k>, <n>, <m>)`: `<tag> || <ct>`
 
 Equivalently, `XChaCha20_DJB` is run over the buffer `<zero32> || <m>`, where `<zero32>` is 32 NUL bytes, starting at block counter 0; the first 32 output bytes are taken as `<poly-key>`, and the remaining `length(<m>)` bytes are `<ct>`.
 
@@ -916,11 +977,12 @@ The Box-XChaChaPoly algorithm combines the key exchange mechanism X25519 defined
 
 - `<k>`: encryption key
 - `<m>`: message to encrypt
+- `<n>`: 24-byte nonce
 - `<pk>`: recipient's public key
 - `<sk>`: sender's secret key
 - `<zero16>`: 16 NUL bytes
 - `<sk'>`: `HChaCha20(X25519(<pk>, <sk>), <zero16>)`, the shared key
-- `Box-XChaChaPoly(pk, sk, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <m>)`
+- `Box-XChaChaPoly(pk, sk, n, m)`: `XChaCha20_DJB-Poly1305(<sk'>, <n>, <m>)`
 
 # Appendix 2: DNSCrypt Test Vectors
 
