@@ -1046,11 +1046,11 @@ svg {
 <thead><tr>
 <td class="left">Internet-Draft</td>
 <td class="center">DNSCrypt</td>
-<td class="right">June 2026</td>
+<td class="right">July 2026</td>
 </tr></thead>
 <tfoot><tr>
 <td class="left">Denis</td>
-<td class="center">Expires 24 December 2026</td>
+<td class="center">Expires 2 January 2027</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1063,12 +1063,12 @@ svg {
 <dd class="internet-draft">draft-denis-dprive-dnscrypt-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-06-22" class="published">22 June 2026</time>
+<time datetime="2026-07-01" class="published">1 July 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Informational</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2026-12-24">24 December 2026</time></dd>
+<dd class="expires"><time datetime="2027-01-02">2 January 2027</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1115,7 +1115,7 @@ svg {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 24 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 2 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1516,7 +1516,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-4.1.1"><code>&lt;dnscrypt-query&gt;</code>:  <code>&lt;client-magic&gt;</code> <code>&lt;client-pk&gt;</code> <code>&lt;client-nonce&gt;</code> <code>&lt;encrypted-query&gt;</code><a href="#section-4-4.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.2">
-          <p id="section-4-4.2.1"><code>&lt;client-magic&gt;</code>: an 8 byte identifier for the resolver certificate chosen by the client.<a href="#section-4-4.2.1" class="pilcrow">¶</a></p>
+          <p id="section-4-4.2.1"><code>&lt;client-magic&gt;</code>: an 8 byte identifier for the resolver certificate chosen by the client (see the Certificates section).<a href="#section-4-4.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.3">
           <p id="section-4-4.3.1"><code>&lt;client-pk&gt;</code>: the client's public key, whose length depends on the encryption algorithm defined in the chosen certificate.<a href="#section-4-4.3.1" class="pilcrow">¶</a></p>
@@ -1531,7 +1531,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-4.6.1"><code>&lt;client-nonce&gt;</code>: a unique query identifier for a given (<code>&lt;client-sk&gt;</code>, <code>&lt;resolver-pk&gt;</code>) tuple. Every newly encrypted DNSCrypt query for the same (<code>&lt;client-sk&gt;</code>, <code>&lt;resolver-pk&gt;</code>) tuple <span class="bcp14">MUST</span> use a distinct <code>&lt;client-nonce&gt;</code> value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of <code>&lt;client-nonce&gt;</code> is determined by the chosen encryption algorithm.<a href="#section-4-4.6.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.7">
-          <p id="section-4-4.7.1"><code>AE</code>: the authenticated encryption function for the selected certificate. For <code>Box-XChaChaPoly</code> and PQDNSCrypt, it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl <code>secretbox</code> layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of <span>[<a href="#RFC8439" class="cite xref">RFC8439</a>]</span>, and the two are not interchangeable. See Appendix 1 for details.<a href="#section-4-4.7.1" class="pilcrow">¶</a></p>
+          <p id="section-4-4.7.1"><code>AE</code>: the authenticated encryption function for the selected certificate. For <code>Box-XChaChaPoly</code> and PQDNSCrypt (see the Post-Quantum Key Exchange section), it is the <code>XChaCha20_DJB-Poly1305</code> construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl <code>secretbox</code> layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of <span>[<a href="#RFC8439" class="cite xref">RFC8439</a>]</span>, and the two are not interchangeable. See Appendix 1 for details.<a href="#section-4-4.7.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.8">
           <p id="section-4-4.8.1"><code>&lt;encrypted-query&gt;</code>: <code>AE(&lt;shared-key&gt;, &lt;client-nonce&gt; &lt;client-nonce-pad&gt;, &lt;client-query&gt; &lt;client-query-pad&gt;)</code><a href="#section-4-4.8.1" class="pilcrow">¶</a></p>
@@ -1543,7 +1543,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-4.10.1"><code>&lt;client-query&gt;</code>: the unencrypted client query. The query is not modified; in particular, the query flags are not altered. The DNS-over-TCP two-byte length prefix is transport framing and is not part of the plaintext encrypted by DNSCrypt.<a href="#section-4-4.10.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.11">
-          <p id="section-4-4.11.1"><code>&lt;client-nonce-pad&gt;</code>: <code>&lt;client-nonce&gt;</code> length is half the nonce length required by the encryption algorithm. In client queries, the other half, <code>&lt;client-nonce-pad&gt;</code> is filled with NUL bytes. For <code>&lt;es-version&gt;</code> <code>0x00 0x02</code>, the encryption algorithm uses a 24-byte nonce, so <code>&lt;client-nonce&gt;</code> is 12 bytes and <code>&lt;client-nonce-pad&gt;</code> is the remaining 12 NUL bytes.<a href="#section-4-4.11.1" class="pilcrow">¶</a></p>
+          <p id="section-4-4.11.1"><code>&lt;client-nonce-pad&gt;</code>: <code>&lt;client-nonce&gt;</code> length is half the nonce length required by the encryption algorithm. In client queries, the other half, <code>&lt;client-nonce-pad&gt;</code> is filled with NUL bytes. For <code>&lt;es-version&gt;</code> <code>0x00 0x02</code> (the encryption-system identifier carried in the certificate; see the Certificates section), the encryption algorithm uses a 24-byte nonce, so <code>&lt;client-nonce&gt;</code> is 12 bytes and <code>&lt;client-nonce-pad&gt;</code> is the remaining 12 NUL bytes.<a href="#section-4-4.11.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-4.12">
           <p id="section-4-4.12.1"><code>&lt;client-query-pad&gt;</code>: the variable-length padding.<a href="#section-4-4.12.1" class="pilcrow">¶</a></p>
@@ -1570,7 +1570,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           <p id="section-4-6.6.1"><code>&lt;resolver-sk&gt;</code>: the resolver's secret key.<a href="#section-4-6.6.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-6.7">
-          <p id="section-4-6.7.1"><code>&lt;resolver-nonce&gt;</code>: a unique response identifier for a given <code>(&lt;client-pk&gt;, &lt;resolver-sk&gt;)</code> tuple. The length of <code>&lt;resolver-nonce&gt;</code> depends on the chosen encryption algorithm.<a href="#section-4-6.7.1" class="pilcrow">¶</a></p>
+          <p id="section-4-6.7.1"><code>&lt;resolver-nonce&gt;</code>: a unique response identifier for a given <code>(&lt;client-pk&gt;, &lt;resolver-sk&gt;)</code> tuple. The length of <code>&lt;resolver-nonce&gt;</code> depends on the chosen encryption algorithm. It <span class="bcp14">MUST NOT</span> consist only of NUL bytes: the response nonce would then equal the query nonce, reusing a key and nonce pair for two different plaintexts. A resolver that picks <code>&lt;resolver-nonce&gt;</code> uniformly at random, as deployed resolvers do, satisfies both requirements.<a href="#section-4-6.7.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-4-6.8">
           <p id="section-4-6.8.1"><code>AE</code>: the authenticated encryption function for the selected certificate, as described for client queries above.<a href="#section-4-6.8.1" class="pilcrow">¶</a></p>
@@ -1657,10 +1657,10 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
             <p id="section-5.1-3.4.1">Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.<a href="#section-5.1-3.4.1" class="pilcrow">¶</a></p>
 </li>
           <li id="section-5.1-3.5">
-            <p id="section-5.1-3.5.1">To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the shared key and a nonce made of the client's nonce followed by the resolver's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.<a href="#section-5.1-3.5.1" class="pilcrow">¶</a></p>
+            <p id="section-5.1-3.5.1">To send an encrypted response, the server truncates the DNS response and sets the TC flag if the encrypted response would not fit within the size limit, adds padding, and encrypts the result using the shared key and a nonce made of the client's nonce followed by the resolver's nonce. The resulting packet is sent to the client using standard DNS mechanisms.<a href="#section-5.1-3.5.1" class="pilcrow">¶</a></p>
 </li>
           <li id="section-5.1-3.6">
-            <p id="section-5.1-3.6.1">The client authenticates and decrypts the response using the shared key and the nonce included in the response. If the response was truncated, the client <span class="bcp14">MAY</span> adjust internal parameters and retry over TCP <span>[<a href="#RFC7766" class="cite xref">RFC7766</a>]</span>. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.<a href="#section-5.1-3.6.1" class="pilcrow">¶</a></p>
+            <p id="section-5.1-3.6.1">The client authenticates and decrypts the response using the shared key and the nonce included in the response. If the response was truncated, the client retries over TCP <span>[<a href="#RFC7766" class="cite xref">RFC7766</a>]</span> and can adjust internal parameters. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.<a href="#section-5.1-3.6.1" class="pilcrow">¶</a></p>
 </li>
         </ol>
 <p id="section-5.1-4">Key features of the DNSCrypt protocol include:<a href="#section-5.1-4" class="pilcrow">¶</a></p>
@@ -1694,7 +1694,9 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.2-2">DNSCrypt clients and resolvers <span class="bcp14">SHOULD</span> support the protocol via UDP, and <span class="bcp14">MUST</span> support it over TCP.<a href="#section-5.2-2" class="pilcrow">¶</a></p>
 <p id="section-5.2-3">Both TCP and UDP connections using DNSCrypt <span class="bcp14">SHOULD</span> employ port 443 by default.<a href="#section-5.2-3" class="pilcrow">¶</a></p>
 <p id="section-5.2-4">The choice of port 443 helps DNSCrypt traffic blend with HTTPS traffic, providing some protection against traffic analysis.<a href="#section-5.2-4" class="pilcrow">¶</a></p>
-<p id="section-5.2-5">Once transport is established, the next step is session establishment through certificate exchange.<a href="#section-5.2-5" class="pilcrow">¶</a></p>
+<p id="section-5.2-5">A complete encrypted <code>&lt;dnscrypt-query&gt;</code> packet <span class="bcp14">MUST NOT</span> exceed 4096 bytes, and resolvers <span class="bcp14">MUST</span> accept queries up to this size over both UDP and TCP.<a href="#section-5.2-5" class="pilcrow">¶</a></p>
+<p id="section-5.2-6">This bound matches deployed implementations: clients never send larger queries, and resolvers stop reading beyond a few kilobytes.<a href="#section-5.2-6" class="pilcrow">¶</a></p>
+<p id="section-5.2-7">Once transport is established, the next step is session establishment through certificate exchange.<a href="#section-5.2-7" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="session-establishment">
@@ -1732,9 +1734,8 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.4.1-4">A resolver that has authenticated and decrypted a query <span class="bcp14">MUST</span> accept this padding format; it <span class="bcp14">MUST NOT</span> reject a query solely because the plaintext length is not a multiple of 64 bytes.<a href="#section-5.4.1-4" class="pilcrow">¶</a></p>
 <p id="section-5.4.1-5"><code>&lt;min-query-len&gt;</code> is a variable target length for the complete encrypted <code>&lt;dnscrypt-query&gt;</code> packet, including <code>&lt;client-magic&gt;</code>, <code>&lt;client-pk&gt;</code>, <code>&lt;client-nonce&gt;</code>, the authentication tag, and the encrypted padded DNS query.<a href="#section-5.4.1-5" class="pilcrow">¶</a></p>
 <p id="section-5.4.1-6">It is initially 256 bytes, and implementations <span class="bcp14">MAY</span> use a larger initial value, such as 512 bytes.<a href="#section-5.4.1-6" class="pilcrow">¶</a></p>
-<p id="section-5.4.1-7">A client pads the plaintext so that the complete UDP DNSCrypt packet is at least <code>&lt;min-query-len&gt;</code> bytes and, when practical, rounded to a multiple of 64 bytes.<a href="#section-5.4.1-7" class="pilcrow">¶</a></p>
+<p id="section-5.4.1-7">A client pads the plaintext so that the complete UDP DNSCrypt packet is at least <code>&lt;min-query-len&gt;</code> bytes; when practical, the padded plaintext <code>&lt;client-query&gt; &lt;client-query-pad&gt;</code> <span class="bcp14">SHOULD</span> be a multiple of 64 bytes.<a href="#section-5.4.1-7" class="pilcrow">¶</a></p>
 <p id="section-5.4.1-8">This target is a sender-side anti-amplification and privacy parameter, not an additional receiver-side validity check.<a href="#section-5.4.1-8" class="pilcrow">¶</a></p>
-<p id="section-5.4.1-9">The exact estimator a client uses to raise or lower it is implementation-defined, but the complete UDP DNSCrypt packet <span class="bcp14">MUST</span> remain within the maximum size supported by the transport path.<a href="#section-5.4.1-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="client-queries-over-udp">
@@ -1744,7 +1745,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
           </h4>
 <p id="section-5.4.2-1">UDP-based client queries need to follow the padding guidelines outlined in the previous section.<a href="#section-5.4.2-1" class="pilcrow">¶</a></p>
 <p id="section-5.4.2-2">Each UDP packet <span class="bcp14">MUST</span> hold one query, with the complete content comprising the <code>&lt;dnscrypt-query&gt;</code> structure specified in the Protocol Components section.<a href="#section-5.4.2-2" class="pilcrow">¶</a></p>
-<p id="section-5.4.2-3">UDP packets employing the DNSCrypt protocol have the capability to be split into distinct IP packets sharing the same source port.<a href="#section-5.4.2-3" class="pilcrow">¶</a></p>
+<p id="section-5.4.2-3">A DNSCrypt UDP datagram may be fragmented at the IP layer like any other UDP datagram, and a client <span class="bcp14">MAY</span> send multiple independent queries from the same source port.<a href="#section-5.4.2-3" class="pilcrow">¶</a></p>
 <p id="section-5.4.2-4">Upon receiving a query, the resolver may choose to either disregard it or send back a response encrypted using DNSCrypt.<a href="#section-5.4.2-4" class="pilcrow">¶</a></p>
 <p id="section-5.4.2-5">The client <span class="bcp14">MUST</span> authenticate and, if authentication succeeds, decrypt the response with the help of the resolver's public key, the shared secret, and the response nonce.<a href="#section-5.4.2-5" class="pilcrow">¶</a></p>
 <p id="section-5.4.2-6">The client <span class="bcp14">MUST</span> verify that the <code>&lt;client-nonce&gt;</code> prefix of the response nonce matches a currently outstanding query.<a href="#section-5.4.2-6" class="pilcrow">¶</a></p>
@@ -1773,7 +1774,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.4.3-2">The padding starts with a byte valued <code>0x80</code> followed by a variable number of NUL bytes.<a href="#section-5.4.3-2" class="pilcrow">¶</a></p>
 <p id="section-5.4.3-3">TCP has no UDP amplification constraint, but padding still hides the exact DNS query length.<a href="#section-5.4.3-3" class="pilcrow">¶</a></p>
 <p id="section-5.4.3-4">A client <span class="bcp14">SHOULD</span> add a random padding component and <span class="bcp14">SHOULD</span> avoid deterministic plaintext lengths for repeated queries.<a href="#section-5.4.3-4" class="pilcrow">¶</a></p>
-<p id="section-5.4.3-5">The final plaintext only needs to be valid ISO/IEC 7816-4 padding; deployed receivers accept any authenticated plaintext that unpads correctly and parses as a DNS message.<a href="#section-5.4.3-5" class="pilcrow">¶</a></p>
+<p id="section-5.4.3-5">A resolver <span class="bcp14">MUST</span> accept any authenticated plaintext that is valid ISO/IEC 7816-4 padding and parses as a DNS message, whatever the padded length; deployed receivers already behave this way.<a href="#section-5.4.3-5" class="pilcrow">¶</a></p>
 <p id="section-5.4.3-6">For example, an originally unpadded 56-byte DNS query can be validly padded as:<a href="#section-5.4.3-6" class="pilcrow">¶</a></p>
 <p id="section-5.4.3-7"><code>&lt;56-bytes-query&gt; 0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00</code><a href="#section-5.4.3-7" class="pilcrow">¶</a></p>
 <p id="section-5.4.3-8">or<a href="#section-5.4.3-8" class="pilcrow">¶</a></p>
@@ -1805,19 +1806,10 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.4.5-2">Padding begins with a single byte holding the value <code>0x80</code>, followed by any number of <code>NUL</code> bytes.<a href="#section-5.4.5-2" class="pilcrow">¶</a></p>
 <p id="section-5.4.5-3">When the transport size budget permits, the resolver <span class="bcp14">SHOULD</span> pad <code>&lt;resolver-response&gt;</code> <code>&lt;resolver-response-pad&gt;</code> to a multiple of 64 bytes.<a href="#section-5.4.5-3" class="pilcrow">¶</a></p>
 <p id="section-5.4.5-4">The padding length <span class="bcp14">SHOULD</span> be between 1 and 256 bytes, including the initial <code>0x80</code> byte.<a href="#section-5.4.5-4" class="pilcrow">¶</a></p>
-<p id="section-5.4.5-5">For a given response, that padding length <span class="bcp14">SHOULD</span> be deterministic for at least one of these tuples:<a href="#section-5.4.5-5" class="pilcrow">¶</a></p>
-<ul class="normal">
-<li class="normal" id="section-5.4.5-6.1">
-              <p id="section-5.4.5-6.1.1"><code>(&lt;resolver-sk&gt;, &lt;client-nonce&gt;)</code><a href="#section-5.4.5-6.1.1" class="pilcrow">¶</a></p>
-</li>
-            <li class="normal" id="section-5.4.5-6.2">
-              <p id="section-5.4.5-6.2.1"><code>(&lt;shared-key&gt;, &lt;client-nonce&gt;)</code><a href="#section-5.4.5-6.2.1" class="pilcrow">¶</a></p>
-</li>
-          </ul>
-<p id="section-5.4.5-7">A resolver can satisfy this requirement with a pseudorandom function.<a href="#section-5.4.5-7" class="pilcrow">¶</a></p>
-<p id="section-5.4.5-8">The requirement prevents response padding from becoming an extra source of linkable server behavior while still allowing stateless operation.<a href="#section-5.4.5-8" class="pilcrow">¶</a></p>
-<p id="section-5.4.5-9">If the preferred padding would make an encrypted UDP response exceed the triggering query size or the resolver's UDP maximum, the resolver <span class="bcp14">MAY</span> use a shorter valid ISO/IEC 7816-4 padding length, or truncate the DNS response and set the DNS <code>TC</code> flag before padding and encryption.<a href="#section-5.4.5-9" class="pilcrow">¶</a></p>
-<p id="section-5.4.5-10">A client <span class="bcp14">MUST</span> accept any authenticated response whose plaintext has valid ISO/IEC 7816-4 padding and parses as a DNS response; it <span class="bcp14">MUST NOT</span> reject a response solely because the plaintext length is not a multiple of 64 bytes or because the padding length is outside the preferred range above.<a href="#section-5.4.5-10" class="pilcrow">¶</a></p>
+<p id="section-5.4.5-5">The padding length <span class="bcp14">SHOULD</span> be computed as a deterministic function of either <code>(&lt;resolver-sk&gt;, &lt;client-nonce&gt;)</code> or <code>(&lt;shared-key&gt;, &lt;client-nonce&gt;)</code>, for example with a pseudorandom function, so that retransmitted queries receive identically padded responses.<a href="#section-5.4.5-5" class="pilcrow">¶</a></p>
+<p id="section-5.4.5-6">The requirement prevents response padding from becoming an extra source of linkable server behavior while still allowing stateless operation.<a href="#section-5.4.5-6" class="pilcrow">¶</a></p>
+<p id="section-5.4.5-7">If the preferred padding would make an encrypted UDP response exceed the triggering query size or the resolver's UDP maximum, the resolver <span class="bcp14">MAY</span> use a shorter valid ISO/IEC 7816-4 padding length, or truncate the DNS response and set the DNS <code>TC</code> flag before padding and encryption.<a href="#section-5.4.5-7" class="pilcrow">¶</a></p>
+<p id="section-5.4.5-8">A client <span class="bcp14">MUST</span> accept any authenticated response whose plaintext has valid ISO/IEC 7816-4 padding and parses as a DNS response; it <span class="bcp14">MUST NOT</span> reject a response solely because the plaintext length is not a multiple of 64 bytes or because the padding length is outside the preferred range above.<a href="#section-5.4.5-8" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="resolver-responses-over-udp">
@@ -1828,11 +1820,12 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.4.6-1">The resolver <span class="bcp14">MUST</span> authenticate and decrypt client queries before forwarding them to the upstream DNS resolution path.<a href="#section-5.4.6-1" class="pilcrow">¶</a></p>
 <p id="section-5.4.6-2">Queries that cannot be authenticated, decrypted, unpadded, or parsed as DNS messages <span class="bcp14">MUST</span> be ignored.<a href="#section-5.4.6-2" class="pilcrow">¶</a></p>
 <p id="section-5.4.6-3">Any client-supplied nonce value <span class="bcp14">MUST</span> be accepted for decryption.<a href="#section-5.4.6-3" class="pilcrow">¶</a></p>
-<p id="section-5.4.6-4">A resolver <span class="bcp14">MAY</span> ignore or refuse queries encrypted with client public keys that are not authorized by local policy, but a public resolver that accepts anonymous clients <span class="bcp14">MUST</span> accept arbitrary client public keys.<a href="#section-5.4.6-4" class="pilcrow">¶</a></p>
+<p id="section-5.4.6-4">A resolver <span class="bcp14">MAY</span> ignore or refuse queries encrypted with client public keys that are not authorized by local policy, but a public resolver that accepts anonymous clients <span class="bcp14">MUST</span> accept arbitrary client public keys, subject only to the cryptographic checks of Appendix 2, such as low-order key rejection.<a href="#section-5.4.6-4" class="pilcrow">¶</a></p>
 <p id="section-5.4.6-5">Responses sent over UDP <span class="bcp14">MUST</span> be padded as described in "Padding For Resolver Responses" and encrypted as <code>&lt;dnscrypt-response&gt;</code>.<a href="#section-5.4.6-5" class="pilcrow">¶</a></p>
-<p id="section-5.4.6-6">The resolver <span class="bcp14">MUST NOT</span> send an encrypted DNSCrypt response over UDP that is larger than the encrypted DNSCrypt query packet that triggered it.<a href="#section-5.4.6-6" class="pilcrow">¶</a></p>
-<p id="section-5.4.6-7">If the full encrypted response packet would be larger than the query packet, the resolver either stays silent or truncates the DNS response and sets the DNS <code>TC</code> flag before padding and encryption.<a href="#section-5.4.6-7" class="pilcrow">¶</a></p>
-<p id="section-5.4.6-8">If the resolver sends a truncated response, the encrypted truncated response <span class="bcp14">MUST</span> still be equal to or shorter than the encrypted query packet.<a href="#section-5.4.6-8" class="pilcrow">¶</a></p>
+<p id="section-5.4.6-6">As in standard DNS, the decrypted response <span class="bcp14">MUST</span> echo the transaction ID and question of the decrypted query; deployed clients discard responses that do not.<a href="#section-5.4.6-6" class="pilcrow">¶</a></p>
+<p id="section-5.4.6-7">The resolver <span class="bcp14">MUST NOT</span> send an encrypted DNSCrypt response over UDP that is larger than the encrypted DNSCrypt query packet that triggered it.<a href="#section-5.4.6-7" class="pilcrow">¶</a></p>
+<p id="section-5.4.6-8">If the full encrypted response packet would be larger than the query packet, the resolver either stays silent or truncates the DNS response and sets the DNS <code>TC</code> flag before padding and encryption.<a href="#section-5.4.6-8" class="pilcrow">¶</a></p>
+<p id="section-5.4.6-9">If the resolver sends a truncated response, the encrypted truncated response <span class="bcp14">MUST</span> still be equal to or shorter than the encrypted query packet.<a href="#section-5.4.6-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="resolver-responses-over-tcp">
@@ -1846,8 +1839,9 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.4.7-4">The complete encrypted response packet is then prefixed with a two-byte big-endian length.<a href="#section-5.4.7-4" class="pilcrow">¶</a></p>
 <p id="section-5.4.7-5">Cleartext DNS response payloads are not prefixed by their length before encryption, even when the DNSCrypt packet is sent over TCP.<a href="#section-5.4.7-5" class="pilcrow">¶</a></p>
 <p id="section-5.4.7-6">Unlike UDP responses, TCP responses <span class="bcp14">MUST</span> be sent unmodified even if their encrypted length exceeds the encrypted query length.<a href="#section-5.4.7-6" class="pilcrow">¶</a></p>
-<p id="section-5.4.7-7">The query and response processing rules described above depend on the certificate information obtained during session establishment.<a href="#section-5.4.7-7" class="pilcrow">¶</a></p>
-<p id="section-5.4.7-8">The certificate format and management procedures are critical to the protocol's security.<a href="#section-5.4.7-8" class="pilcrow">¶</a></p>
+<p id="section-5.4.7-7">The complete encrypted response <span class="bcp14">MUST</span> nevertheless be smaller than 4096 bytes, because deployed clients reject larger DNSCrypt packets; a resolver whose DNS response would exceed this limit truncates it and sets the TC flag before padding and encryption.<a href="#section-5.4.7-7" class="pilcrow">¶</a></p>
+<p id="section-5.4.7-8">The query and response processing rules described above depend on the certificate information obtained during session establishment.<a href="#section-5.4.7-8" class="pilcrow">¶</a></p>
+<p id="section-5.4.7-9">The certificate format and management procedures are critical to the protocol's security.<a href="#section-5.4.7-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1892,7 +1886,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-5.5-3">To initiate a DNSCrypt session, a client transmits an ordinary unencrypted <code>TXT</code> DNS query to the resolver's IP address and DNSCrypt port.<a href="#section-5.5-3" class="pilcrow">¶</a></p>
 <p id="section-5.5-4">A client <span class="bcp14">MAY</span> use UDP or TCP according to local policy.<a href="#section-5.5-4" class="pilcrow">¶</a></p>
 <p id="section-5.5-5">A common strategy is to try UDP first and retry over TCP after failure, timeout, or truncation.<a href="#section-5.5-5" class="pilcrow">¶</a></p>
-<p id="section-5.5-6">Resolvers are not required to serve certificates both on UDP and TCP.<a href="#section-5.5-6" class="pilcrow">¶</a></p>
+<p id="section-5.5-6">A resolver <span class="bcp14">MUST</span> serve certificates over both UDP and TCP; the UDP response <span class="bcp14">MAY</span> be truncated, with the TC flag set, to direct the client to TCP. Deployed clients begin certificate retrieval over UDP and only retry over TCP after a truncated response.<a href="#section-5.5-6" class="pilcrow">¶</a></p>
 <p id="section-5.5-7">The standard name in the question (<code>&lt;provider name&gt;</code>) follows this scheme:<a href="#section-5.5-7" class="pilcrow">¶</a></p>
 <p id="section-5.5-8"><code>&lt;protocol-major-version&gt; . dnscrypt-cert . &lt;zone&gt;</code><a href="#section-5.5-8" class="pilcrow">¶</a></p>
 <p id="section-5.5-9">A major protocol version has only one certificate format.<a href="#section-5.5-9" class="pilcrow">¶</a></p>
@@ -1949,13 +1943,13 @@ names, especially to support multiple protocol versions simultaneously.<a href="
             <p id="section-5.5-32.6.1"><code>&lt;resolver-pk&gt;</code>: the resolver short-term public key, which is 32 bytes when using X25519.<a href="#section-5.5-32.6.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-5.5-32.7">
-            <p id="section-5.5-32.7.1"><code>&lt;client-magic&gt;</code>: The first 8 bytes of a client query that was built using the information from this certificate. It <span class="bcp14">MAY</span> be a truncated public key. Two valid certificates cannot share the same <code>&lt;client-magic&gt;</code>. <code>&lt;client-magic&gt;</code> <span class="bcp14">MUST NOT</span> start with <code>0x00 0x00 0x00 0x00 0x00 0x00 0x00</code> (seven all-zero bytes) in order to avoid confusion with the QUIC protocol <span>[<a href="#RFC9000" class="cite xref">RFC9000</a>]</span>.<a href="#section-5.5-32.7.1" class="pilcrow">¶</a></p>
+            <p id="section-5.5-32.7.1"><code>&lt;client-magic&gt;</code>: an 8-byte value identifying this certificate; the client copies it verbatim into the first 8 bytes of every query built from this certificate. It is an opaque identifier and <span class="bcp14">MAY</span> be a truncated resolver public key. A provider <span class="bcp14">MUST NOT</span> issue two concurrently valid certificates with the same <code>&lt;client-magic&gt;</code>, <span class="bcp14">MUST NOT</span> use a value starting with <code>0x00 0x00 0x00 0x00 0x00 0x00 0x00</code> (seven all-zero bytes) in order to avoid confusion with the QUIC protocol <span>[<a href="#RFC9000" class="cite xref">RFC9000</a>]</span>, and <span class="bcp14">MUST NOT</span> use the reserved <code>&lt;resume-magic&gt;</code> value defined in Stateless Resumption.<a href="#section-5.5-32.7.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-5.5-32.8">
-            <p id="section-5.5-32.8.1"><code>&lt;serial&gt;</code>: a 4-byte serial number in big-endian format. If more than one certificate is valid, the client <span class="bcp14">MUST</span> prefer the certificate with a higher serial number.<a href="#section-5.5-32.8.1" class="pilcrow">¶</a></p>
+            <p id="section-5.5-32.8.1"><code>&lt;serial&gt;</code>: a 4-byte serial number in big-endian format. If more than one certificate is valid for the encryption system the client selected, the client <span class="bcp14">MUST</span> prefer the certificate with a higher serial number.<a href="#section-5.5-32.8.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-5.5-32.9">
-            <p id="section-5.5-32.9.1"><code>&lt;ts-start&gt;</code>: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-32.9.1" class="pilcrow">¶</a></p>
+            <p id="section-5.5-32.9.1"><code>&lt;ts-start&gt;</code>: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp. It <span class="bcp14">MUST</span> be strictly earlier than <code>&lt;ts-end&gt;</code>; deployed clients reject certificates whose validity interval is empty or inverted.<a href="#section-5.5-32.9.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-5.5-32.10">
             <p id="section-5.5-32.10.1"><code>&lt;ts-end&gt;</code>: the date the certificate is valid until (inclusive), as a big-endian 4-byte unsigned Unix timestamp.<a href="#section-5.5-32.10.1" class="pilcrow">¶</a></p>
@@ -1982,8 +1976,8 @@ verification.<a href="#section-5.5-36.2.1" class="pilcrow">¶</a></p>
 <dt id="section-5.5-36.3">
 <code>0x00 0x03</code>, X-Wing PQDNSCrypt:</dt>
           <dd style="margin-left: 1.5em" id="section-5.5-36.4">
-            <p id="section-5.5-36.4.1">The resolver public key is 1216 bytes, and the client key-exchange field in
-queries is 1120 bytes. The nonce is split into a 12-byte client nonce and a
+            <p id="section-5.5-36.4.1">The resolver public key is 1216 bytes, and the client key-exchange field
+(<code>&lt;client-kex&gt;</code>) in queries is 1120 bytes. The nonce is split into a 12-byte client nonce and a
 12-byte resolver nonce. The shared key is derived with HKDF-SHA256 as
 defined in "PQ Key Derivation". The certificate extensions field contains
 the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="pilcrow">¶</a></p>
@@ -1992,7 +1986,7 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
 </dl>
 <p id="section-5.5-37">Each <code>TXT</code> answer record carries exactly one certificate blob.<a href="#section-5.5-37" class="pilcrow">¶</a></p>
 <p id="section-5.5-38">A client reads <code>&lt;cert-magic&gt;</code>, <code>&lt;es-version&gt;</code>, and <code>&lt;protocol-minor-version&gt;</code> first.<a href="#section-5.5-38" class="pilcrow">¶</a></p>
-<p id="section-5.5-39">If <code>&lt;es-version&gt;</code> is not supported and the client has no local definition for that encryption system's field lengths, the client <span class="bcp14">MUST</span> ignore that certificate blob as a whole.<a href="#section-5.5-39" class="pilcrow">¶</a></p>
+<p id="section-5.5-39">If <code>&lt;es-version&gt;</code> is not supported, the client <span class="bcp14">MUST</span> ignore that certificate blob as a whole.<a href="#section-5.5-39" class="pilcrow">¶</a></p>
 <p id="section-5.5-40">It <span class="bcp14">MUST NOT</span> try to guess the <code>&lt;resolver-pk&gt;</code> length.<a href="#section-5.5-40" class="pilcrow">¶</a></p>
 <p id="section-5.5-41">Within a <code>TXT</code> record, the certificate is carried in the record's RDATA, which is a sequence of length-prefixed character-strings <span>[<a href="#RFC1035" class="cite xref">RFC1035</a>]</span>.<a href="#section-5.5-41" class="pilcrow">¶</a></p>
 <p id="section-5.5-42">A client reconstructs the certificate by concatenating these character-strings in order, after removing the single length octet that precedes each one.<a href="#section-5.5-42" class="pilcrow">¶</a></p>
@@ -2137,16 +2131,13 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
                 <p id="section-8.2-2.1.2.1.1">Resolvers <span class="bcp14">MUST</span> rotate their short-term key pairs at most every 24 hours<a href="#section-8.2-2.1.2.1.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-8.2-2.1.2.2">
-                <p id="section-8.2-2.1.2.2.1">Previous resolver secret keys <span class="bcp14">MUST</span> be retained only while unexpired certificates still refer to them, unless the key is believed to be compromised<a href="#section-8.2-2.1.2.2.1" class="pilcrow">¶</a></p>
+                <p id="section-8.2-2.1.2.2.1">Previous resolver secret keys <span class="bcp14">MUST</span> be retained while unexpired served certificates still refer to them, and <span class="bcp14">MUST</span> be discarded as soon as no such certificate remains, or immediately if the key is believed to be compromised; the full rule appears in Operational Considerations<a href="#section-8.2-2.1.2.2.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-8.2-2.1.2.3">
-                <p id="section-8.2-2.1.2.3.1">Previous resolver secret keys <span class="bcp14">MUST</span> be discarded as soon as no valid, served certificate can require them<a href="#section-8.2-2.1.2.3.1" class="pilcrow">¶</a></p>
+                <p id="section-8.2-2.1.2.3.1">Provider secret keys used for certificate signing <span class="bcp14">SHOULD</span> be stored in hardware security modules (HSMs)<a href="#section-8.2-2.1.2.3.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-8.2-2.1.2.4">
-                <p id="section-8.2-2.1.2.4.1">Provider secret keys used for certificate signing <span class="bcp14">SHOULD</span> be stored in hardware security modules (HSMs)<a href="#section-8.2-2.1.2.4.1" class="pilcrow">¶</a></p>
-</li>
-              <li class="normal" id="section-8.2-2.1.2.5">
-                <p id="section-8.2-2.1.2.5.1">Example: A resolver might generate new key pairs daily at midnight UTC<a href="#section-8.2-2.1.2.5.1" class="pilcrow">¶</a></p>
+                <p id="section-8.2-2.1.2.4.1">Example: A resolver might generate new key pairs daily at midnight UTC<a href="#section-8.2-2.1.2.4.1" class="pilcrow">¶</a></p>
 </li>
             </ul>
 </li>
@@ -2191,7 +2182,7 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
                 <p id="section-8.2-2.4.2.2.1">Certificates <span class="bcp14">MUST</span> be checked for validity periods<a href="#section-8.2-2.4.2.2.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-8.2-2.4.2.3">
-                <p id="section-8.2-2.4.2.3.1">Clients <span class="bcp14">MUST</span> prefer certificates with higher serial numbers<a href="#section-8.2-2.4.2.3.1" class="pilcrow">¶</a></p>
+                <p id="section-8.2-2.4.2.3.1">Clients <span class="bcp14">MUST</span> prefer certificates with higher serial numbers within the selected encryption system<a href="#section-8.2-2.4.2.3.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-8.2-2.4.2.4">
                 <p id="section-8.2-2.4.2.4.1">Example: A client might cache valid certificates and check for updates hourly<a href="#section-8.2-2.4.2.4.1" class="pilcrow">¶</a></p>
@@ -2325,8 +2316,8 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
       </h2>
 <p id="section-9-1">Special attention should be paid to the uniqueness of the generated secret keys.<a href="#section-9-1" class="pilcrow">¶</a></p>
 <p id="section-9-2">Client public keys can be used by resolvers to authenticate clients, link queries to customer accounts, and unlock business-specific features such as redirecting specific domain names to a sinkhole.<a href="#section-9-2" class="pilcrow">¶</a></p>
-<p id="section-9-3">Resolvers accessible from any client IP address can also opt for only responding to a set of whitelisted public keys.<a href="#section-9-3" class="pilcrow">¶</a></p>
-<p id="section-9-4">Resolvers accepting queries from any client <span class="bcp14">MUST</span> accept any client public key.<a href="#section-9-4" class="pilcrow">¶</a></p>
+<p id="section-9-3">A resolver that restricts service to known clients <span class="bcp14">MAY</span> respond only to an allowed set of client public keys.<a href="#section-9-3" class="pilcrow">¶</a></p>
+<p id="section-9-4">A resolver that serves arbitrary, anonymous clients <span class="bcp14">MUST</span> accept any client public key as a matter of policy; cryptographic checks, such as the rejection of low-order public keys in Appendix 2, still apply.<a href="#section-9-4" class="pilcrow">¶</a></p>
 <p id="section-9-5">In particular, an anonymous client can generate a new key pair for every session, or even for every query.<a href="#section-9-5" class="pilcrow">¶</a></p>
 <p id="section-9-6">This mitigates the ability for a resolver to group queries by client public keys and discover the set of IP addresses a user might have been operating.<a href="#section-9-6" class="pilcrow">¶</a></p>
 <p id="section-9-7">Resolvers <span class="bcp14">MUST</span> rotate each short-term key pair every 24 hours at most.<a href="#section-9-7" class="pilcrow">¶</a></p>
@@ -2491,12 +2482,13 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
             </ul>
 </li>
         </ol>
-<p id="section-10.3-3">Address validation is performed after decoding <code>&lt;server-ip&gt;</code>.<a href="#section-10.3-3" class="pilcrow">¶</a></p>
-<p id="section-10.3-4">If the decoded address is an IPv4-mapped IPv6 address, the relay applies the IPv4 policy to the embedded IPv4 address.<a href="#section-10.3-4" class="pilcrow">¶</a></p>
-<p id="section-10.3-5">Relay operators <span class="bcp14">SHOULD</span> maintain an explicit allowlist or denylist of target ranges.<a href="#section-10.3-5" class="pilcrow">¶</a></p>
-<p id="section-10.3-6">At minimum, relays <span class="bcp14">MUST</span> reject targets that are not globally routable, including unspecified, loopback, link-local, multicast, private-use, unique-local, documentation, benchmarking, and other special-use addresses.<a href="#section-10.3-6" class="pilcrow">¶</a></p>
-<p id="section-10.3-7">These relay requirements ensure that anonymization does not compromise the security properties of the underlying DNSCrypt protocol.<a href="#section-10.3-7" class="pilcrow">¶</a></p>
-<p id="section-10.3-8">Proper deployment requires additional operational considerations.<a href="#section-10.3-8" class="pilcrow">¶</a></p>
+<p id="section-10.3-3">A relay <span class="bcp14">MAY</span> briefly cache a validated certificate response and replay it for identical certificate queries, rewriting only the DNS transaction ID; deployed relays cache certificate responses for a few minutes.<a href="#section-10.3-3" class="pilcrow">¶</a></p>
+<p id="section-10.3-4">Address validation is performed after decoding <code>&lt;server-ip&gt;</code>.<a href="#section-10.3-4" class="pilcrow">¶</a></p>
+<p id="section-10.3-5">If the decoded address is an IPv4-mapped IPv6 address, the relay applies the IPv4 policy to the embedded IPv4 address.<a href="#section-10.3-5" class="pilcrow">¶</a></p>
+<p id="section-10.3-6">Relay operators <span class="bcp14">SHOULD</span> maintain an explicit allowlist or denylist of target ranges.<a href="#section-10.3-6" class="pilcrow">¶</a></p>
+<p id="section-10.3-7">At minimum, relays <span class="bcp14">MUST</span> reject targets that are not globally routable, including unspecified, loopback, link-local, multicast, private-use, unique-local, documentation, benchmarking, and other special-use addresses.<a href="#section-10.3-7" class="pilcrow">¶</a></p>
+<p id="section-10.3-8">These relay requirements ensure that anonymization does not compromise the security properties of the underlying DNSCrypt protocol.<a href="#section-10.3-8" class="pilcrow">¶</a></p>
+<p id="section-10.3-9">Proper deployment requires additional operational considerations.<a href="#section-10.3-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="operational-considerations-1">
@@ -2556,7 +2548,7 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
 <p id="section-11.1-3">The resolver generates a KEM key pair and publishes the public (encapsulation) key in the <code>&lt;resolver-pk&gt;</code> field of its certificate.<a href="#section-11.1-3" class="pilcrow">¶</a></p>
 <p id="section-11.1-4">The client runs the KEM encapsulation against <code>&lt;resolver-pk&gt;</code>, obtaining a ciphertext and a shared secret, and places the ciphertext in the <code>&lt;client-pk&gt;</code> field.<a href="#section-11.1-4" class="pilcrow">¶</a></p>
 <p id="section-11.1-5">The resolver runs the KEM decapsulation on the received ciphertext using its secret key and recovers the same shared secret.<a href="#section-11.1-5" class="pilcrow">¶</a></p>
-<p id="section-11.1-6">The <code>&lt;client-pk&gt;</code> field therefore carries a KEM ciphertext rather than a client public key, and its length is determined by the <code>&lt;es-version&gt;</code> of the chosen certificate.<a href="#section-11.1-6" class="pilcrow">¶</a></p>
+<p id="section-11.1-6">The <code>&lt;client-pk&gt;</code> field therefore carries a KEM ciphertext rather than a client public key, and its length is determined by the <code>&lt;es-version&gt;</code> of the chosen certificate; the PQ text refers to the value carried in this field as <code>&lt;client-kex&gt;</code>.<a href="#section-11.1-6" class="pilcrow">¶</a></p>
 <p id="section-11.1-7">The resolver remains stateless: it derives the shared secret from a single client message, with no per-client state.<a href="#section-11.1-7" class="pilcrow">¶</a></p>
 <p id="section-11.1-8">Everything after the shared secret is shared with classical DNSCrypt, with the small additions described in this section.<a href="#section-11.1-8" class="pilcrow">¶</a></p>
 <p id="section-11.1-9">PQ uses X-Wing <span>[<a href="#I-D.connolly-cfrg-xwing-kem" class="cite xref">I-D.connolly-cfrg-xwing-kem</a>]</span>, a hybrid KEM that combines ML-KEM-768 <span>[<a href="#FIPS203" class="cite xref">FIPS203</a>]</span> with X25519 <span>[<a href="#RFC7748" class="cite xref">RFC7748</a>]</span>.<a href="#section-11.1-9" class="pilcrow">¶</a></p>
@@ -2737,7 +2729,7 @@ ticket ::= &lt;ticket-key-id&gt; &lt;ticket-nonce&gt;
           </ul>
 <p id="section-11.7.1-8">The ticket is opaque, resolver-private state: its internal format and AEAD are an implementation choice and never need to interoperate between resolvers.<a href="#section-11.7.1-8" class="pilcrow">¶</a></p>
 <p id="section-11.7.1-9">This document's reference construction reuses the <code>XChaCha20_DJB-Poly1305</code> AEAD of Appendix 1 with no associated data; <code>&lt;ticket-key-id&gt;</code> selects the ticket key, so its integrity follows from decryption failing under the wrong key, and a dedicated <code>TK</code> keeps ticket sealing separate from query traffic.<a href="#section-11.7.1-9" class="pilcrow">¶</a></p>
-<p id="section-11.7.1-10">The client stores the ticket together with the <code>resume-secret</code> it derived and the ticket expiry.<a href="#section-11.7.1-10" class="pilcrow">¶</a></p>
+<p id="section-11.7.1-10">The client stores the ticket together with the <code>resume-secret</code> it derived and an expiry it computes locally from the advertised <code>&lt;ticket-lifetime&gt;</code> and the time the ticket was received, further capped by the certificate expiry and local policy; the <code>&lt;ticket-expiry&gt;</code> field itself is sealed inside the ticket and not readable by the client.<a href="#section-11.7.1-10" class="pilcrow">¶</a></p>
 <p id="section-11.7.1-11">The ticket is delivered in the response control block:<a href="#section-11.7.1-11" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-11.7.1-12">
 <pre>
@@ -2795,10 +2787,13 @@ ticket ::= &lt;ticket-key-id&gt; &lt;ticket-nonce&gt;
 </pre><a href="#section-11.7.2-9" class="pilcrow">¶</a>
 </div>
 <p id="section-11.7.2-10">The client performs the same derivation.<a href="#section-11.7.2-10" class="pilcrow">¶</a></p>
-<p id="section-11.7.2-11">The nonce construction is unchanged.<a href="#section-11.7.2-11" class="pilcrow">¶</a></p>
-<p id="section-11.7.2-12">Each resumed query thus uses a fresh key derived from its own <code>&lt;client-nonce&gt;</code>; clients <span class="bcp14">MUST</span> still use a distinct <code>&lt;client-nonce&gt;</code> for each resumed query, because repeating it would repeat both the key and the AEAD nonce.<a href="#section-11.7.2-12" class="pilcrow">¶</a></p>
-<p id="section-11.7.2-13">If a ticket cannot be opened or validated, the resolver <span class="bcp14">MUST</span> silently drop the query, with no response distinguishable from any other dropped query.<a href="#section-11.7.2-13" class="pilcrow">¶</a></p>
-<p id="section-11.7.2-14">A client that receives no response retries with a query that carries a ciphertext, obtaining a fresh ticket.<a href="#section-11.7.2-14" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-11">In this derivation, <code>&lt;client-nonce&gt;</code> is the fresh nonce carried in the resumed query itself, not the nonce of the query that produced the ticket, and <code>&lt;client-magic&gt;</code> is the value from the certificate under which the ticket was issued, which the client keeps together with the ticket and the <code>resume-secret</code>.<a href="#section-11.7.2-11" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-12">The nonce construction is unchanged.<a href="#section-11.7.2-12" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-13">Each resumed query thus uses a fresh key derived from its own <code>&lt;client-nonce&gt;</code>; clients <span class="bcp14">MUST</span> still use a distinct <code>&lt;client-nonce&gt;</code> for each resumed query, because repeating it would repeat both the key and the AEAD nonce.<a href="#section-11.7.2-13" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-14">Responses to resumed queries reuse this per-query key, so the <code>&lt;resolver-nonce&gt;</code> <span class="bcp14">MUST</span> be unique per response and <span class="bcp14">MUST NOT</span> be all NUL bytes; a random 12-byte value satisfies this. A replayed resumed query re-derives the same key, and answering it twice with the same <code>&lt;resolver-nonce&gt;</code> but a different response plaintext would reuse a key and nonce pair.<a href="#section-11.7.2-14" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-15">Responses to resumed queries use the <code>&lt;pq-response-plain&gt;</code> layout like any PQ response; a resolver that issues no new ticket sets <code>&lt;control-len&gt;</code> to zero.<a href="#section-11.7.2-15" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-16">If a ticket cannot be opened or validated, the resolver <span class="bcp14">MUST</span> silently drop the query, with no response distinguishable from any other dropped query.<a href="#section-11.7.2-16" class="pilcrow">¶</a></p>
+<p id="section-11.7.2-17">A client that receives no response retries with a query that carries a ciphertext, obtaining a fresh ticket.<a href="#section-11.7.2-17" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="resumption-considerations">
@@ -2806,7 +2801,7 @@ ticket ::= &lt;ticket-key-id&gt; &lt;ticket-nonce&gt;
           <h4 id="name-resumption-considerations">
 <a href="#section-11.7.3" class="section-number selfRef">11.7.3. </a><a href="#name-resumption-considerations" class="section-name selfRef">Resumption Considerations</a>
           </h4>
-<p id="section-11.7.3-1">A ticket bounds forward secrecy for resumed traffic: compromise of <code>TK</code> exposes only the resumed queries whose tickets are still valid under that ticket-key epoch, and never the queries that carried a ciphertext.<a href="#section-11.7.3-1" class="pilcrow">¶</a></p>
+<p id="section-11.7.3-1">A ticket bounds forward secrecy for resumed traffic: an attacker who records resumed queries and later obtains a <code>TK</code> can open every ticket sealed under that <code>TK</code>, expired or not, and decrypt the recorded queries, but never the queries that carried a ciphertext. Destroying each <code>TK</code> when it is rotated out is what limits this exposure, so ticket keys <span class="bcp14">MUST</span> be erased promptly at rotation.<a href="#section-11.7.3-1" class="pilcrow">¶</a></p>
 <p id="section-11.7.3-2">The ticket lifetime <span class="bcp14">SHOULD</span> be short and <span class="bcp14">MUST NOT</span> exceed the resolver certificate lifetime or the ticket-key lifetime.<a href="#section-11.7.3-2" class="pilcrow">¶</a></p>
 <p id="section-11.7.3-3">A ticket is also a linkable handle for its lifetime; a client that prioritizes unlinkability, in particular over Anonymized DNSCrypt, <span class="bcp14">SHOULD</span> send queries that carry a ciphertext rather than resuming.<a href="#section-11.7.3-3" class="pilcrow">¶</a></p>
 <p id="section-11.7.3-4">Because a ticket is a stable identifier that a client reuses across queries, a resolver that observes the same ticket from more than one source address can link those addresses to a single client.<a href="#section-11.7.3-4" class="pilcrow">¶</a></p>
@@ -2858,7 +2853,7 @@ ticket ::= &lt;ticket-key-id&gt; &lt;ticket-nonce&gt;
 <p id="section-11.10-5">A resolver <span class="bcp14">MUST</span> drop such a query exactly as it drops any query that fails authentication, and the outcome on the wire <span class="bcp14">MUST NOT</span> reveal, through a distinct response, error, or timing, whether decapsulation, key derivation, or authentication failed; otherwise the resolver becomes a decapsulation oracle.<a href="#section-11.10-5" class="pilcrow">¶</a></p>
 <p id="section-11.10-6">KEM and X25519 operations <span class="bcp14">SHOULD</span> be constant-time with respect to secret data.<a href="#section-11.10-6" class="pilcrow">¶</a></p>
 <p id="section-11.10-7">Forward secrecy for queries that carry a ciphertext has the same granularity as classical resolver-key rotation, since the resolver KEM key is short-term and the client's encapsulation randomness is fresh per query.<a href="#section-11.10-7" class="pilcrow">¶</a></p>
-<p id="section-11.10-8">Resumed queries inherit the shorter of the ticket lifetime and the ticket-key lifetime.<a href="#section-11.10-8" class="pilcrow">¶</a></p>
+<p id="section-11.10-8">For resumed queries, recorded traffic remains decryptable until every <code>TK</code> able to open its ticket has been destroyed, so their forward secrecy follows the ticket-key lifetime.<a href="#section-11.10-8" class="pilcrow">¶</a></p>
 <p id="section-11.10-9">Nonce uniqueness is required as in classical DNSCrypt.<a href="#section-11.10-9" class="pilcrow">¶</a></p>
 <p id="section-11.10-10">For queries that carry a ciphertext, each has an independent key, so cross-query collisions cannot occur; for resumed queries the per-query key derivation uses <code>&lt;client-nonce&gt;</code>, so clients <span class="bcp14">MUST</span> keep it unique for the lifetime of a ticket.<a href="#section-11.10-10" class="pilcrow">¶</a></p>
 </section>
@@ -3378,12 +3373,12 @@ certificate query (45 bytes):
 </pre><a href="#section-14.4-3" class="pilcrow">¶</a>
 </div>
 <p id="section-14.4-4">The successful response carrying the 124-byte certificate above is 182 bytes.<a href="#section-14.4-4" class="pilcrow">¶</a></p>
-<p id="section-14.4-5">This is the classical certificate response used by deployed DNSCrypt v2 resolvers.<a href="#section-14.4-5" class="pilcrow">¶</a></p>
+<p id="section-14.4-5">This is the classical certificate response used by deployed DNSCrypt v2 resolvers: the flags word <code>0x8180</code> sets QR and RA, echoes RD from the query, and leaves RCODE at 0. The TXT record TTL is an operational choice, 86400 seconds in this vector.<a href="#section-14.4-5" class="pilcrow">¶</a></p>
 <p id="section-14.4-6">If larger PQ certificate records are also available, a resolver can return this classical response with the TC flag set when the complete classical-plus-PQ response would exceed the triggering UDP request.<a href="#section-14.4-6" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-14.4-7">
 <pre>
 certificate response with one TXT answer (182 bytes):
-  abcd8481000100010000000001320d646e7363727970742d6365727407657861
+  abcd8180000100010000000001320d646e7363727970742d6365727407657861
   6d706c6503636f6d0000100001c00c0010000100015180007d7c444e53430002
   00003a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aabc173a6a49b7a
   49ca55362a6c5dec47657cf515e9f99382a316dfecd964b94d1c4659cac45961
@@ -4254,7 +4249,7 @@ resumed shared-key = HKDF-SHA256(
                          L    = 32)          = [resumed-shared-key: 32 bytes]
 
 query-nonce = resumed-client-nonce || (12 * 00)   (24 bytes)
-plaintext   = dns-query || 80 || pad         (padded to 256: resumed floor)
+plaintext   = dns-query || 80 || pad        (padded to 256 for this vector)
 encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
 </pre><a href="#section-15.6-1" class="pilcrow">¶</a>
 </div>
@@ -4355,7 +4350,7 @@ encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
             <p id="section-15.7-3.7.1">Repeated nonce (client obligation): reusing a <code>&lt;client-nonce&gt;</code> under one ticket reuses both the derived key and the AEAD nonce; this is a client <span class="bcp14">MUST NOT</span>. A stateless resolver cannot detect it, so there is no wire vector; it is listed to make the obligation explicit.<a href="#section-15.7-3.7.1" class="pilcrow">¶</a></p>
 </li>
           <li id="section-15.7-3.8">
-            <p id="section-15.7-3.8.1">Under-padded resumed query: a resumed UDP query padded below the 256-byte floor decrypts correctly but violates the anti-amplification rule, and an Anonymized DNSCrypt relay <span class="bcp14">MAY</span> drop it on the response-size check.<a href="#section-15.7-3.8.1" class="pilcrow">¶</a></p>
+            <p id="section-15.7-3.8.1">Under-padded resumed query: a resumed UDP query whose complete packet is below the 256-byte query-size target decrypts correctly but violates the anti-amplification guidance, and an Anonymized DNSCrypt relay <span class="bcp14">MAY</span> drop its response on the response-size check.<a href="#section-15.7-3.8.1" class="pilcrow">¶</a></p>
 </li>
         </ol>
 </section>
