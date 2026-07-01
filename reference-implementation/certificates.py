@@ -11,25 +11,35 @@ from constants import (
     CERT_MAGIC,
     CLIENT_MAGIC_SIZE,
     ES_VERSION_XCHACHA20POLY1305,
-    ES_VERSION_XSALSA20POLY1305,
     ES_VERSION_XWING,
     KDF_ID_HKDF_SHA256,
     PQ_PROFILE_EXTENSION_MAGIC,
     PQ_PROFILE_EXTENSION_VERSION,
     PROTOCOL_MINOR_VERSION,
     PUBLIC_KEY_SIZE,
+    RESUME_MAGIC,
     SIGNATURE_SIZE,
     XWING_CIPHERTEXT_SIZE,
     XWING_PUBLIC_KEY_SIZE,
 )
-from crypto import _require_size, ed25519_sign, ed25519_verify
+from crypto import ed25519_sign, ed25519_verify, require_size
 from errors import CertificateError
+
+__all__ = [
+    "DNSCryptCertificate",
+    "PQProfileExtension",
+    "choose_certificate",
+    "client_pk_len_for_es_version",
+    "parse_pq_profile_extension",
+    "pq_profile_extension",
+    "resolver_pk_len_for_es_version",
+]
 
 
 def resolver_pk_len_for_es_version(es_version: bytes) -> int:
     """Return the certificate `<resolver-pk>` length for an encryption system."""
 
-    if es_version in (ES_VERSION_XSALSA20POLY1305, ES_VERSION_XCHACHA20POLY1305):
+    if es_version == ES_VERSION_XCHACHA20POLY1305:
         return PUBLIC_KEY_SIZE
     if es_version == ES_VERSION_XWING:
         return XWING_PUBLIC_KEY_SIZE
@@ -39,7 +49,7 @@ def resolver_pk_len_for_es_version(es_version: bytes) -> int:
 def client_pk_len_for_es_version(es_version: bytes) -> int:
     """Return the query `<client-pk>` length for an encryption system."""
 
-    if es_version in (ES_VERSION_XSALSA20POLY1305, ES_VERSION_XCHACHA20POLY1305):
+    if es_version == ES_VERSION_XCHACHA20POLY1305:
         return PUBLIC_KEY_SIZE
     if es_version == ES_VERSION_XWING:
         return XWING_CIPHERTEXT_SIZE
@@ -65,7 +75,7 @@ def pq_profile_extension(
 ) -> bytes:
     """Build the signed 12-byte PQ profile extension."""
 
-    _require_size("es_version", es_version, 2)
+    require_size("es_version", es_version, 2)
     return (
         PQ_PROFILE_EXTENSION_MAGIC
         + bytes([PQ_PROFILE_EXTENSION_VERSION])
@@ -169,9 +179,13 @@ class DNSCryptCertificate:
     ) -> "DNSCryptCertificate":
         """Create and sign a DNSCrypt certificate."""
 
-        _require_size("es_version", es_version, 2)
-        _require_size("protocol_minor_version", protocol_minor_version, 2)
-        _require_size("client_magic", client_magic, CLIENT_MAGIC_SIZE)
+        require_size("es_version", es_version, 2)
+        require_size("protocol_minor_version", protocol_minor_version, 2)
+        require_size("client_magic", client_magic, CLIENT_MAGIC_SIZE)
+        if client_magic.startswith(b"\x00" * 7):
+            raise CertificateError("client-magic must not start with 7 zero bytes")
+        if client_magic == RESUME_MAGIC:
+            raise CertificateError("client-magic must not equal the resume magic")
         if len(resolver_pk) != resolver_pk_len_for_es_version(es_version):
             raise CertificateError("resolver-pk length does not match es-version")
         unsigned = cls(
@@ -232,13 +246,22 @@ def choose_certificate(
         ES_VERSION_XWING,
     ),
 ) -> DNSCryptCertificate:
-    """Choose the valid certificate with the highest serial number."""
+    """Choose the valid certificate with the highest serial number.
+
+    Certificates that are unsupported, invalid, or outside their validity
+    window are skipped, never fatal: one bad record in a response must not
+    prevent the client from using a valid one. Profile pinning, such as a
+    PQ-only policy, is expressed through `supported_es_versions`.
+    """
 
     usable = []
     for certificate in certificates:
         if certificate.es_version not in supported_es_versions:
             continue
-        certificate.verify(provider_public_key)
+        try:
+            certificate.verify(provider_public_key)
+        except CertificateError:
+            continue
         if certificate.ts_start <= now <= certificate.ts_end:
             usable.append(certificate)
     if not usable:

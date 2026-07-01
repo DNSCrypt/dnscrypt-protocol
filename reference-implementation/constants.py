@@ -4,8 +4,8 @@ CERT_MAGIC = b"DNSC"
 RESOLVER_MAGIC = bytes.fromhex("7236666e76576a38")
 ANON_MAGIC = b"\xff" * 8 + b"\x00\x00"
 RESUME_MAGIC = b"PQResume"
+QUIC_MAGIC = b"\x00" * 7 + b"\x01"
 
-ES_VERSION_XSALSA20POLY1305 = b"\x00\x01"
 ES_VERSION_XCHACHA20POLY1305 = b"\x00\x02"
 ES_VERSION_XWING = b"\x00\x03"
 PROTOCOL_MINOR_VERSION = b"\x00\x00"
@@ -15,17 +15,26 @@ PUBLIC_KEY_SIZE = 32
 SIGNATURE_SIZE = 64
 CLIENT_NONCE_SIZE = 12
 RESOLVER_NONCE_SIZE = 12
+XCHACHA20_NONCE_SIZE = 24
 NONCE_SIZE = CLIENT_NONCE_SIZE + RESOLVER_NONCE_SIZE
 TAG_SIZE = 16
 PADDING_BLOCK_SIZE = 64
-MIN_UDP_QUERY_LEN = 256
+
+# Plaintext padding floor used by this reference implementation. The spec's
+# <min-query-len> target covers the complete encrypted packet; padding the
+# plaintext to 256 bytes keeps the packet above the initial 256-byte target
+# for every encryption system, and matches the Appendix 2 and 3 vectors.
+MIN_QUERY_PLAINTEXT_LEN = 256
+
+# Complete encrypted queries must not exceed this size, and complete encrypted
+# responses must be strictly smaller, matching deployed implementations.
+MAX_DNSCRYPT_PACKET_SIZE = 4096
 
 XWING_MLKEM_PUBLIC_KEY_SIZE = 1184
 XWING_MLKEM_CIPHERTEXT_SIZE = 1088
 XWING_X25519_KEY_SIZE = 32
 XWING_PUBLIC_KEY_SIZE = XWING_MLKEM_PUBLIC_KEY_SIZE + XWING_X25519_KEY_SIZE
 XWING_CIPHERTEXT_SIZE = XWING_MLKEM_CIPHERTEXT_SIZE + XWING_X25519_KEY_SIZE
-XWING_SHARED_SECRET_SIZE = 32
 XWING_LABEL = b"\\.//^\\"
 
 PQ_PROFILE_EXTENSION_MAGIC = b"PQD"

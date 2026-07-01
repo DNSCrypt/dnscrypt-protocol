@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import os
+from dataclasses import dataclass
 from typing import Sequence
 
 from cryptography.hazmat.primitives.asymmetric import mlkem, x25519
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from certificates import DNSCryptCertificate, parse_pq_profile_extension
 from constants import (
     CLIENT_NONCE_SIZE,
     ES_VERSION_XWING,
-    MIN_UDP_QUERY_LEN,
+    MIN_QUERY_PLAINTEXT_LEN,
+    PADDING_BLOCK_SIZE,
     PQ_CONTROL_MAGIC,
     PQ_CONTROL_VERSION,
     RESUME_MAGIC,
@@ -28,35 +29,106 @@ from constants import (
     XWING_PUBLIC_KEY_SIZE,
 )
 from crypto import (
-    _require_size,
     hkdf_sha256,
     pad_7816_4,
     query_nonce,
+    require_size,
     unpad_7816_4,
     xchacha20_djb_poly1305_open,
     xchacha20_djb_poly1305_seal,
 )
 from errors import CertificateError, DecryptionError
 from packets import decrypt_dnscrypt_response, encrypt_dnscrypt_response
-from protocol_types import (
-    DecryptedQuery,
-    IssuedPQTicket,
-    OpenedTicket,
-    PQDecryptedResponse,
-    PreparedQuery,
-    TicketKey,
-    XWingEncapsulation,
-    XWingKeyPair,
-)
+from protocol_types import DecryptedQuery, PreparedQuery
+from transport import check_query_size
+
+__all__ = [
+    "IssuedPQTicket",
+    "OpenedTicket",
+    "PQDecryptedResponse",
+    "TicketKey",
+    "XWingEncapsulation",
+    "XWingKeyPair",
+    "decrypt_pq_dnscrypt_response",
+    "decrypt_pq_resume_query",
+    "encrypt_pq_dnscrypt_query",
+    "encrypt_pq_dnscrypt_response",
+    "encrypt_pq_resume_query",
+    "issue_pq_ticket",
+    "open_pq_ticket",
+    "pq_cert_context",
+    "pq_resume_secret",
+    "pq_resumed_shared_key",
+    "pq_shared_key",
+    "profile_extension_hash",
+    "xwing_decapsulate",
+    "xwing_encapsulate",
+    "xwing_generate_key_pair",
+    "xwing_generate_key_pair_derand",
+]
+
+
+@dataclass(frozen=True)
+class XWingKeyPair:
+    """An X-Wing seed key pair represented by its seed and public key."""
+
+    secret_seed: bytes
+    public_key: bytes
+
+
+@dataclass(frozen=True)
+class XWingEncapsulation:
+    """X-Wing encapsulation output: shared secret and ciphertext."""
+
+    shared_secret: bytes
+    ciphertext: bytes
+
+
+@dataclass(frozen=True)
+class TicketKey:
+    """Server-wide key used to seal and open PQ resumption tickets."""
+
+    ticket_key_id: bytes
+    ticket_key: bytes
+
+
+@dataclass(frozen=True)
+class IssuedPQTicket:
+    """A freshly issued ticket, its client resume secret, and control block."""
+
+    resume_secret: bytes
+    ticket: bytes
+    control: bytes
+
+
+@dataclass(frozen=True)
+class PQDecryptedResponse:
+    """A decrypted PQ response split into control data and DNS response."""
+
+    control: bytes
+    resolver_response: bytes
+
+
+@dataclass(frozen=True)
+class OpenedTicket:
+    """Fields recovered from a valid PQ resumption ticket."""
+
+    resume_secret: bytes
+    es_version: bytes
+    client_magic: bytes
+    serial: int
+    ts_end: int
+    ticket_expiry: int
+    profile_extension_hash: bytes
 
 
 def _xwing_expand_decapsulation_key(secret_seed: bytes):
-    _require_size("secret_seed", secret_seed, 32)
+    require_size("secret_seed", secret_seed, 32)
     expanded = hashlib.shake_256(secret_seed).digest(96)
     mlkem_sk = mlkem.MLKEM768PrivateKey.from_seed_bytes(expanded[:64])
     x25519_sk = x25519.X25519PrivateKey.from_private_bytes(expanded[64:96])
     mlkem_pk = mlkem_sk.public_key().public_bytes_raw()
-    x25519_pk = x25519_sk.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    x25519_pk = x25519_sk.public_key().public_bytes_raw()
     return mlkem_sk, x25519_sk, mlkem_pk, x25519_pk
 
 
@@ -77,31 +149,49 @@ def _xwing_combiner(ss_m: bytes, ss_x: bytes, ct_x: bytes, pk_x: bytes) -> bytes
     return hashlib.sha3_256(ss_m + ss_x + ct_x + pk_x + XWING_LABEL).digest()
 
 
+def _x25519(sk: x25519.X25519PrivateKey, public_bytes: bytes) -> bytes:
+    """RFC 7748 X25519 without the low-order rejection X-Wing forgoes.
+
+    pyca refuses to return an all-zero shared point, but X-Wing relies on
+    implicit rejection instead: a low-order point must yield a garbage shared
+    secret so authentication fails with no distinguishable error or timing.
+    """
+
+    try:
+        return sk.exchange(x25519.X25519PublicKey.from_public_bytes(public_bytes))
+    except ValueError:
+        return b"\x00" * 32
+
+
 def xwing_encapsulate(public_key: bytes) -> XWingEncapsulation:
     """Encapsulate to an X-Wing public key using fresh randomness."""
 
-    _require_size("public_key", public_key, XWING_PUBLIC_KEY_SIZE)
+    require_size("public_key", public_key, XWING_PUBLIC_KEY_SIZE)
     pk_m = public_key[:XWING_MLKEM_PUBLIC_KEY_SIZE]
     pk_x = public_key[XWING_MLKEM_PUBLIC_KEY_SIZE:]
     ss_m, ct_m = mlkem.MLKEM768PublicKey.from_public_bytes(pk_m).encapsulate()
     x_sk = x25519.X25519PrivateKey.generate()
-    ct_x = x_sk.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-    ss_x = x_sk.exchange(x25519.X25519PublicKey.from_public_bytes(pk_x))
+    ct_x = x_sk.public_key().public_bytes_raw()
+    ss_x = _x25519(x_sk, pk_x)
     return XWingEncapsulation(
         shared_secret=_xwing_combiner(ss_m, ss_x, ct_x, pk_x),
         ciphertext=ct_m + ct_x,
     )
 
 
-def xwing_decapsulate(encrypted_kem: bytes, secret_seed: bytes) -> bytes:
-    """Decapsulate an X-Wing ciphertext with a 32-byte resolver seed."""
+def xwing_decapsulate(ciphertext: bytes, secret_seed: bytes) -> bytes:
+    """Decapsulate an X-Wing ciphertext with a 32-byte resolver seed.
 
-    _require_size("encrypted_kem", encrypted_kem, XWING_CIPHERTEXT_SIZE)
+    Mirroring X-Wing `Decaps`, the key is re-expanded from the seed on every
+    call; a production resolver would cache the expanded key.
+    """
+
+    require_size("ciphertext", ciphertext, XWING_CIPHERTEXT_SIZE)
     mlkem_sk, x_sk, _, pk_x = _xwing_expand_decapsulation_key(secret_seed)
-    ct_m = encrypted_kem[:XWING_MLKEM_CIPHERTEXT_SIZE]
-    ct_x = encrypted_kem[XWING_MLKEM_CIPHERTEXT_SIZE:]
+    ct_m = ciphertext[:XWING_MLKEM_CIPHERTEXT_SIZE]
+    ct_x = ciphertext[XWING_MLKEM_CIPHERTEXT_SIZE:]
     ss_m = mlkem_sk.decapsulate(ct_m)
-    ss_x = x_sk.exchange(x25519.X25519PublicKey.from_public_bytes(ct_x))
+    ss_x = _x25519(x_sk, ct_x)
     return _xwing_combiner(ss_m, ss_x, ct_x, pk_x)
 
 
@@ -116,12 +206,21 @@ def pq_cert_context(certificate: DNSCryptCertificate) -> bytes:
     )
 
 
+def profile_extension_hash(certificate: DNSCryptCertificate) -> bytes:
+    """Compute `<profile-extension-hash>`: SHA-256 of the extensions field."""
+
+    return hashlib.sha256(certificate.extensions).digest()
+
+
 def pq_shared_key(
     certificate: DNSCryptCertificate, kem_ss: bytes, client_kex: bytes
 ) -> bytes:
-    """Derive PQDNSCrypt `<shared-key>` from X-Wing `<kem-ss>`."""
+    """Derive PQDNSCrypt `<shared-key>` from X-Wing `<kem-ss>`.
 
-    parse_pq_profile_extension(certificate.extensions, certificate.es_version)
+    The PQ profile extension is validated at certificate acceptance, in
+    `DNSCryptCertificate.verify` and `encrypt_pq_dnscrypt_query`, not here.
+    """
+
     return hkdf_sha256(
         ikm=kem_ss,
         salt=certificate.es_version + certificate.client_magic,
@@ -134,28 +233,37 @@ def encrypt_pq_dnscrypt_query(
     certificate: DNSCryptCertificate,
     client_query: bytes,
     client_nonce: bytes | None = None,
-    min_query_len: int = 64,
+    min_plaintext_len: int = PADDING_BLOCK_SIZE,
 ) -> PreparedQuery:
-    """Construct a PQ query carrying a full X-Wing ciphertext."""
+    """Construct a PQ query carrying a full X-Wing ciphertext.
+
+    The plaintext floor is one padding block because the 1120-byte ciphertext
+    already makes the packet far larger than any anti-amplification target.
+    """
 
     if certificate.es_version != ES_VERSION_XWING:
         raise CertificateError("encrypt_pq_dnscrypt_query expects es-version 0x0003")
+    parse_pq_profile_extension(certificate.extensions, certificate.es_version)
     if client_nonce is None:
         client_nonce = os.urandom(CLIENT_NONCE_SIZE)
-    _require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
+    require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
     encapsulation = xwing_encapsulate(certificate.resolver_pk)
     shared_key = pq_shared_key(
         certificate, encapsulation.shared_secret, encapsulation.ciphertext
     )
-    plaintext = pad_7816_4(client_query, min_query_len)
+    plaintext = pad_7816_4(client_query, min_plaintext_len)
     encrypted_query = xchacha20_djb_poly1305_seal(
         shared_key, query_nonce(client_nonce), plaintext
     )
-    return PreparedQuery(
-        dnscrypt_query=certificate.client_magic
+    dnscrypt_query = (
+        certificate.client_magic
         + encapsulation.ciphertext
         + client_nonce
-        + encrypted_query,
+        + encrypted_query
+    )
+    check_query_size(dnscrypt_query)
+    return PreparedQuery(
+        dnscrypt_query=dnscrypt_query,
         shared_key=shared_key,
         client_pk=encapsulation.ciphertext,
         client_nonce=client_nonce,
@@ -184,13 +292,19 @@ def issue_pq_ticket(
     ticket_expiry: int,
     ticket_lifetime: int,
 ) -> IssuedPQTicket:
-    """Seal a stateless PQ resumption ticket and response control block."""
+    """Seal a stateless PQ resumption ticket and response control block.
 
-    _require_size("ticket_key_id", ticket_key.ticket_key_id, TICKET_KEY_ID_SIZE)
-    _require_size("ticket_key", ticket_key.ticket_key, 32)
-    _require_size("ticket_nonce", ticket_nonce, TICKET_NONCE_SIZE)
+    The caller sets `ticket_expiry` to the issuance time plus `ticket_lifetime`,
+    so the advertised lifetime and the sealed expiry stay consistent; neither
+    may run past the certificate expiry.
+    """
+
+    require_size("ticket_key_id", ticket_key.ticket_key_id, TICKET_KEY_ID_SIZE)
+    require_size("ticket_key", ticket_key.ticket_key, 32)
+    require_size("ticket_nonce", ticket_nonce, TICKET_NONCE_SIZE)
+    if ticket_expiry > certificate.ts_end:
+        raise ValueError("ticket_expiry must not exceed the certificate ts_end")
     resume_secret = pq_resume_secret(shared_key, certificate.client_magic, client_nonce)
-    profile_extension_hash = hashlib.sha256(certificate.extensions).digest()
     ticket_plain = (
         resume_secret
         + certificate.es_version
@@ -198,10 +312,9 @@ def issue_pq_ticket(
         + certificate.serial.to_bytes(4, "big")
         + certificate.ts_end.to_bytes(4, "big")
         + ticket_expiry.to_bytes(4, "big")
-        + profile_extension_hash
+        + profile_extension_hash(certificate)
     )
-    if len(ticket_plain) != TICKET_PLAIN_SIZE:
-        raise AssertionError("ticket-plain size changed")
+    assert len(ticket_plain) == TICKET_PLAIN_SIZE
     ticket = (
         ticket_key.ticket_key_id
         + ticket_nonce
@@ -223,7 +336,7 @@ def encrypt_pq_dnscrypt_response(
     client_nonce: bytes,
     resolver_nonce: bytes | None = None,
     control: bytes = b"",
-    minimum_length: int = 64,
+    min_plaintext_len: int = PADDING_BLOCK_SIZE,
 ) -> bytes:
     """Construct a PQ response with `<control-len> <control>` in plaintext."""
 
@@ -235,7 +348,7 @@ def encrypt_pq_dnscrypt_response(
         shared_key,
         client_nonce,
         resolver_nonce=resolver_nonce,
-        minimum_length=minimum_length,
+        min_plaintext_len=min_plaintext_len,
     )
 
 
@@ -279,26 +392,36 @@ def encrypt_pq_resume_query(
     client_magic: bytes,
     client_query: bytes,
     client_nonce: bytes | None = None,
-    min_query_len: int = MIN_UDP_QUERY_LEN,
+    min_plaintext_len: int = MIN_QUERY_PLAINTEXT_LEN,
 ) -> PreparedQuery:
-    """Construct `<pq-resume-query>`."""
+    """Construct `<pq-resume-query>`.
+
+    `client_magic` is the value from the certificate under which the ticket
+    was issued; the client keeps it together with the ticket and the resume
+    secret. A resumed query is small, so the plaintext floor defaults to 256
+    bytes to keep the packet above the UDP query-size target.
+    """
 
     if client_nonce is None:
         client_nonce = os.urandom(CLIENT_NONCE_SIZE)
-    _require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
+    require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
     if len(ticket) > 0xFFFF:
         raise ValueError("ticket is too large")
     shared_key = pq_resumed_shared_key(resume_secret, client_magic, client_nonce, ticket)
-    plaintext = pad_7816_4(client_query, min_query_len)
+    plaintext = pad_7816_4(client_query, min_plaintext_len)
     encrypted_query = xchacha20_djb_poly1305_seal(
         shared_key, query_nonce(client_nonce), plaintext
     )
-    return PreparedQuery(
-        dnscrypt_query=RESUME_MAGIC
+    dnscrypt_query = (
+        RESUME_MAGIC
         + len(ticket).to_bytes(2, "big")
         + ticket
         + client_nonce
-        + encrypted_query,
+        + encrypted_query
+    )
+    check_query_size(dnscrypt_query)
+    return PreparedQuery(
+        dnscrypt_query=dnscrypt_query,
         shared_key=shared_key,
         client_pk=ticket,
         client_nonce=client_nonce,
@@ -341,8 +464,7 @@ def _ticket_matches_certificate(
         and opened_ticket.client_magic == certificate.client_magic
         and opened_ticket.serial == certificate.serial
         and opened_ticket.ts_end == certificate.ts_end
-        and opened_ticket.profile_extension_hash
-        == hashlib.sha256(certificate.extensions).digest()
+        and opened_ticket.profile_extension_hash == profile_extension_hash(certificate)
     )
 
 
@@ -377,6 +499,8 @@ def decrypt_pq_resume_query(
     )
     if certificate is None:
         raise DecryptionError("ticket context does not match any certificate")
+    if not certificate.ts_start <= now <= certificate.ts_end:
+        raise DecryptionError("certificate for this ticket is no longer valid")
     shared_key = pq_resumed_shared_key(
         opened.resume_secret, opened.client_magic, client_nonce, ticket
     )

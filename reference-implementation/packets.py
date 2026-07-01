@@ -5,24 +5,23 @@ from __future__ import annotations
 import os
 from typing import Sequence
 
-from certificates import client_pk_len_for_es_version
+from certificates import DNSCryptCertificate, client_pk_len_for_es_version
 from constants import (
     CLIENT_MAGIC_SIZE,
     CLIENT_NONCE_SIZE,
     ES_VERSION_XCHACHA20POLY1305,
-    ES_VERSION_XWING,
-    MIN_UDP_QUERY_LEN,
+    MIN_QUERY_PLAINTEXT_LEN,
     NONCE_SIZE,
-    PUBLIC_KEY_SIZE,
+    PADDING_BLOCK_SIZE,
     RESOLVER_MAGIC,
     RESOLVER_NONCE_SIZE,
     TAG_SIZE,
 )
 from crypto import (
-    _require_size,
     box_xchacha20_shared_key,
     pad_7816_4,
     query_nonce,
+    require_size,
     unpad_7816_4,
     x25519_public_key,
     xchacha20_djb_poly1305_open,
@@ -30,32 +29,46 @@ from crypto import (
 )
 from errors import CertificateError, DecryptionError
 from protocol_types import DecryptedQuery, PreparedQuery, ResolverCertificate
+from transport import check_query_size, check_response_size
+
+__all__ = [
+    "decrypt_dnscrypt_query",
+    "decrypt_dnscrypt_response",
+    "encrypt_dnscrypt_query",
+    "encrypt_dnscrypt_response",
+]
 
 
 def encrypt_dnscrypt_query(
-    certificate,
+    certificate: DNSCryptCertificate,
     client_sk: bytes,
     client_query: bytes,
     client_nonce: bytes | None = None,
-    min_query_len: int = MIN_UDP_QUERY_LEN,
+    min_plaintext_len: int = MIN_QUERY_PLAINTEXT_LEN,
 ) -> PreparedQuery:
-    """Construct `<dnscrypt-query>` for es-version 0x0002."""
+    """Construct `<dnscrypt-query>` for es-version 0x0002.
+
+    `min_plaintext_len` is the ISO/IEC 7816-4 padding floor for the plaintext,
+    not the spec's `<min-query-len>`, which targets the complete packet; the
+    default floor keeps the packet above the initial 256-byte target.
+    """
 
     if certificate.es_version != ES_VERSION_XCHACHA20POLY1305:
         raise CertificateError("encrypt_dnscrypt_query expects es-version 0x0002")
     if client_nonce is None:
         client_nonce = os.urandom(CLIENT_NONCE_SIZE)
-    _require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
+    require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
     client_pk = x25519_public_key(client_sk)
     shared_key = box_xchacha20_shared_key(client_sk, certificate.resolver_pk)
     nonce = query_nonce(client_nonce)
-    plaintext = pad_7816_4(client_query, min_query_len)
+    plaintext = pad_7816_4(client_query, min_plaintext_len)
     encrypted_query = xchacha20_djb_poly1305_seal(shared_key, nonce, plaintext)
+    dnscrypt_query = (
+        certificate.client_magic + client_pk + client_nonce + encrypted_query
+    )
+    check_query_size(dnscrypt_query)
     return PreparedQuery(
-        dnscrypt_query=certificate.client_magic
-        + client_pk
-        + client_nonce
-        + encrypted_query,
+        dnscrypt_query=dnscrypt_query,
         shared_key=shared_key,
         client_pk=client_pk,
         client_nonce=client_nonce,
@@ -68,8 +81,6 @@ def decrypt_dnscrypt_query(
 ) -> DecryptedQuery:
     """Open `<dnscrypt-query>` at a resolver."""
 
-    if len(dnscrypt_query) < CLIENT_MAGIC_SIZE + PUBLIC_KEY_SIZE + CLIENT_NONCE_SIZE:
-        raise DecryptionError("query is too short")
     client_magic = dnscrypt_query[:CLIENT_MAGIC_SIZE]
     match = next(
         (
@@ -91,13 +102,14 @@ def decrypt_dnscrypt_query(
     encrypted_query = dnscrypt_query[header_len:]
     if certificate.es_version == ES_VERSION_XCHACHA20POLY1305:
         shared_key = box_xchacha20_shared_key(match.resolver_sk, client_pk)
-    elif certificate.es_version == ES_VERSION_XWING:
+    else:
+        # es-version 0x0003, the only other value client_pk_len_for_es_version
+        # accepts. Imported here because pq builds on this module; a top-level
+        # import would be circular.
         from pq import pq_shared_key, xwing_decapsulate
 
-        kem_ss = xwing_decapsulate(encrypted_kem=client_pk, secret_seed=match.resolver_sk)
+        kem_ss = xwing_decapsulate(ciphertext=client_pk, secret_seed=match.resolver_sk)
         shared_key = pq_shared_key(certificate, kem_ss, client_pk)
-    else:
-        raise CertificateError("unsupported certificate")
     plaintext = xchacha20_djb_poly1305_open(
         shared_key, query_nonce(client_nonce), encrypted_query
     )
@@ -115,18 +127,25 @@ def encrypt_dnscrypt_response(
     shared_key: bytes,
     client_nonce: bytes,
     resolver_nonce: bytes | None = None,
-    minimum_length: int = 64,
+    min_plaintext_len: int = PADDING_BLOCK_SIZE,
 ) -> bytes:
-    """Construct `<dnscrypt-response>` for regular DNSCrypt."""
+    """Construct `<dnscrypt-response>` for regular DNSCrypt.
+
+    The caller enforces the transport rules: over UDP the encrypted response
+    must not exceed the encrypted query, so the DNS response is truncated with
+    the TC flag set before calling this function when it would not fit.
+    """
 
     if resolver_nonce is None:
         resolver_nonce = os.urandom(RESOLVER_NONCE_SIZE)
-    _require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
-    _require_size("resolver_nonce", resolver_nonce, RESOLVER_NONCE_SIZE)
+    require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
+    require_size("resolver_nonce", resolver_nonce, RESOLVER_NONCE_SIZE)
     nonce = client_nonce + resolver_nonce
-    plaintext = pad_7816_4(resolver_response, minimum_length)
+    plaintext = pad_7816_4(resolver_response, min_plaintext_len)
     encrypted_response = xchacha20_djb_poly1305_seal(shared_key, nonce, plaintext)
-    return RESOLVER_MAGIC + nonce + encrypted_response
+    dnscrypt_response = RESOLVER_MAGIC + nonce + encrypted_response
+    check_response_size(dnscrypt_response)
+    return dnscrypt_response
 
 
 def decrypt_dnscrypt_response(
@@ -136,7 +155,7 @@ def decrypt_dnscrypt_response(
 ) -> bytes:
     """Open `<dnscrypt-response>` and return `<resolver-response>`."""
 
-    _require_size("expected_client_nonce", expected_client_nonce, CLIENT_NONCE_SIZE)
+    require_size("expected_client_nonce", expected_client_nonce, CLIENT_NONCE_SIZE)
     header_len = len(RESOLVER_MAGIC) + NONCE_SIZE
     if len(dnscrypt_response) < header_len + TAG_SIZE:
         raise DecryptionError("response is too short")
@@ -149,4 +168,3 @@ def decrypt_dnscrypt_response(
         shared_key, nonce, dnscrypt_response[header_len:]
     )
     return unpad_7816_4(plaintext)
-

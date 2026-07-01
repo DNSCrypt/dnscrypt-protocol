@@ -14,6 +14,6 @@ The implementation is split by topic:
 - `crypto.py`: HChaCha20, DNSCrypt's XChaCha20_DJB-Poly1305, HKDF, X25519, Ed25519
 - `certificates.py`: certificate parsing, signing, profile extensions, selection
 - `certificate_retrieval.py`: certificate queries, responses, and the anti-amplification size rule
-- `packets.py` and `transport.py`: DNSCrypt packets, TCP framing, Anonymized DNSCrypt
+- `packets.py` and `transport.py`: DNSCrypt packets, TCP framing, Anonymized DNSCrypt, relay validation
 - `pq.py`: X-Wing, PQ key derivation, tickets, responses, resumed queries
 - `dnscrypt.py`: re-exports the public reference API

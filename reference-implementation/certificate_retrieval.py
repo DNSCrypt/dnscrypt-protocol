@@ -13,7 +13,13 @@ from constants import (
     EDNS_PADDING_OPTION_CODE,
     EDNS_UDP_PAYLOAD_SIZE,
 )
-from errors import AmplificationError
+from errors import WireFormatError
+
+__all__ = [
+    "build_certificate_response",
+    "certificate_query",
+    "serve_certificates",
+]
 
 
 def _dns_name(name: str) -> bytes:
@@ -50,21 +56,21 @@ def _question_end(packet: bytes) -> int:
     """Return the offset just past the single question of a DNS message."""
 
     if len(packet) < DNS_HEADER_SIZE:
-        raise ValueError("DNS message is shorter than its header")
+        raise WireFormatError("DNS message is shorter than its header")
     if packet[4:6] != b"\x00\x01":
-        raise ValueError("a certificate query carries exactly one question")
+        raise WireFormatError("a certificate query carries exactly one question")
     offset = DNS_HEADER_SIZE
     while True:
         if offset >= len(packet):
-            raise ValueError("DNS question name is truncated")
+            raise WireFormatError("DNS question name is truncated")
         label_len = packet[offset]
         if label_len & 0xC0:
-            raise ValueError("unexpected compression pointer in question name")
+            raise WireFormatError("unexpected compression pointer in question name")
         offset += 1 + label_len
         if label_len == 0:
             break
     if offset + 4 > len(packet):
-        raise ValueError("DNS question is missing its type and class")
+        raise WireFormatError("DNS question is missing its type and class")
     return offset + 4
 
 
@@ -138,9 +144,8 @@ def build_certificate_response(
 
     question = request[DNS_HEADER_SIZE : _question_end(request)]
     answers = b"".join(_txt_answer(certificate, ttl) for certificate in certificates)
-    flags = 0x8400  # response, authoritative
-    flags |= request[2] & 0x01  # preserve recursion-desired
-    flags |= 0x0080  # recursion available
+    flags = 0x8080  # QR and RA, as sent by deployed resolvers
+    flags |= int.from_bytes(request[2:4], "big") & 0x0110  # preserve RD and CD
     if truncated:
         flags |= 0x0200  # TC: the full answer did not fit
     header = (
@@ -178,18 +183,3 @@ def serve_certificates(
     if not over_udp or not pq_certificates or len(full) <= len(request):
         return full
     return build_certificate_response(request, classical_certificates, truncated=True)
-
-
-def relay_certificate_response(
-    forwarded_query: bytes, upstream_response: bytes
-) -> bytes:
-    """Forward a certificate response only if it respects anti-amplification.
-
-    An Anonymized DNSCrypt relay forwards the certificate query upstream over UDP
-    and must never return more bytes to the client than the client sent, so a
-    response larger than the forwarded query is rejected.
-    """
-
-    if len(upstream_response) > len(forwarded_query):
-        raise AmplificationError("certificate response is larger than the query")
-    return upstream_response
