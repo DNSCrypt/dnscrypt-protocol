@@ -133,16 +133,16 @@ These components work together to provide the security properties described in t
 Definitions for client queries:
 
 - `<dnscrypt-query>`:  `<client-magic>` `<client-pk>` `<client-nonce>` `<encrypted-query>`
-- `<client-magic>`: an 8 byte identifier for the resolver certificate chosen by the client.
+- `<client-magic>`: an 8 byte identifier for the resolver certificate chosen by the client (see the Certificates section).
 - `<client-pk>`: the client's public key, whose length depends on the encryption algorithm defined in the chosen certificate.
 - `<client-sk>`: the client's secret key.
 - `<resolver-pk>`: the resolver's public key.
 - `<client-nonce>`: a unique query identifier for a given (`<client-sk>`, `<resolver-pk>`) tuple. Every newly encrypted DNSCrypt query for the same (`<client-sk>`, `<resolver-pk>`) tuple MUST use a distinct `<client-nonce>` value, even when the plaintext DNS query is being retried. Retransmitting the same already-encrypted DNSCrypt packet does not require changing its nonce. The length of `<client-nonce>` is determined by the chosen encryption algorithm.
-- `AE`: the authenticated encryption function for the selected certificate. For `Box-XChaChaPoly` and PQDNSCrypt, it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
+- `AE`: the authenticated encryption function for the selected certificate. For `Box-XChaChaPoly` and PQDNSCrypt (see the Post-Quantum Key Exchange section), it is the `XChaCha20_DJB-Poly1305` construction of Appendix 1, whose output is the 16-byte authentication tag followed by the ciphertext. This is the NaCl `secretbox` layout, in which the one-time Poly1305 key is taken from the start of the keystream; it is not the AEAD of {{!RFC8439}}, and the two are not interchangeable. See Appendix 1 for details.
 - `<encrypted-query>`: `AE(<shared-key>, <client-nonce> <client-nonce-pad>, <client-query> <client-query-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-pk>` and `<client-sk>`, using the key exchange algorithm defined in the chosen certificate.
 - `<client-query>`: the unencrypted client query. The query is not modified; in particular, the query flags are not altered. The DNS-over-TCP two-byte length prefix is transport framing and is not part of the plaintext encrypted by DNSCrypt.
-- `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes. For `<es-version>` `0x00 0x02`, the encryption algorithm uses a 24-byte nonce, so `<client-nonce>` is 12 bytes and `<client-nonce-pad>` is the remaining 12 NUL bytes.
+- `<client-nonce-pad>`: `<client-nonce>` length is half the nonce length required by the encryption algorithm. In client queries, the other half, `<client-nonce-pad>` is filled with NUL bytes. For `<es-version>` `0x00 0x02` (the encryption-system identifier carried in the certificate; see the Certificates section), the encryption algorithm uses a 24-byte nonce, so `<client-nonce>` is 12 bytes and `<client-nonce-pad>` is the remaining 12 NUL bytes.
 - `<client-query-pad>`: the variable-length padding.
 
 Definitions for server responses:
@@ -153,7 +153,7 @@ Definitions for server responses:
 - `<client-nonce>`: the nonce sent by the client in the related query.
 - `<client-pk>`: the client's public key.
 - `<resolver-sk>`: the resolver's secret key.
-- `<resolver-nonce>`: a unique response identifier for a given `(<client-pk>, <resolver-sk>)` tuple. The length of `<resolver-nonce>` depends on the chosen encryption algorithm.
+- `<resolver-nonce>`: a unique response identifier for a given `(<client-pk>, <resolver-sk>)` tuple. The length of `<resolver-nonce>` depends on the chosen encryption algorithm. It MUST NOT consist only of NUL bytes: the response nonce would then equal the query nonce, reusing a key and nonce pair for two different plaintexts. A resolver that picks `<resolver-nonce>` uniformly at random, as deployed resolvers do, satisfies both requirements.
 - `AE`: the authenticated encryption function for the selected certificate, as described for client queries above.
 - `<encrypted-response>`: `AE(<shared-key>, <nonce>, <resolver-response> <resolver-response-pad>)`
 - `<shared-key>`: the shared key derived from `<resolver-sk>` and `<client-pk>`, using the key exchange algorithm defined in the chosen certificate.
@@ -214,8 +214,8 @@ The protocol follows a well-defined sequence of steps:
 2. The client generates its own key pair.
 3. The client encrypts unmodified DNS queries using a server's public key, padding them as necessary, and concatenates them to a nonce and a copy of the client's public key. The resulting output is transmitted to the server via standard DNS transport mechanisms {{!RFC1035}}.
 4. Encrypted queries are decrypted by the server using the attached client public key and the server's own secret key. The output is a regular DNS packet that doesn't require any special processing.
-5. To send an encrypted response, the server adds padding to the unmodified response, encrypts the result using the shared key and a nonce made of the client's nonce followed by the resolver's nonce, and truncates the response if necessary. The resulting packet, truncated or not, is sent to the client using standard DNS mechanisms.
-6. The client authenticates and decrypts the response using the shared key and the nonce included in the response. If the response was truncated, the client MAY adjust internal parameters and retry over TCP {{!RFC7766}}. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
+5. To send an encrypted response, the server truncates the DNS response and sets the TC flag if the encrypted response would not fit within the size limit, adds padding, and encrypts the result using the shared key and a nonce made of the client's nonce followed by the resolver's nonce. The resulting packet is sent to the client using standard DNS mechanisms.
+6. The client authenticates and decrypts the response using the shared key and the nonce included in the response. If the response was truncated, the client retries over TCP {{!RFC7766}} and can adjust internal parameters. If not, the output is a regular DNS response that can be directly forwarded to applications and stub resolvers.
 
 Key features of the DNSCrypt protocol include:
 
@@ -239,6 +239,10 @@ DNSCrypt clients and resolvers SHOULD support the protocol via UDP, and MUST sup
 Both TCP and UDP connections using DNSCrypt SHOULD employ port 443 by default.
 
 The choice of port 443 helps DNSCrypt traffic blend with HTTPS traffic, providing some protection against traffic analysis.
+
+A complete encrypted `<dnscrypt-query>` packet MUST NOT exceed 4096 bytes, and resolvers MUST accept queries up to this size over both UDP and TCP.
+
+This bound matches deployed implementations: clients never send larger queries, and resolvers stop reading beyond a few kilobytes.
 
 Once transport is established, the next step is session establishment through certificate exchange.
 
@@ -284,11 +288,9 @@ A resolver that has authenticated and decrypted a query MUST accept this padding
 
 It is initially 256 bytes, and implementations MAY use a larger initial value, such as 512 bytes.
 
-A client pads the plaintext so that the complete UDP DNSCrypt packet is at least `<min-query-len>` bytes and, when practical, rounded to a multiple of 64 bytes.
+A client pads the plaintext so that the complete UDP DNSCrypt packet is at least `<min-query-len>` bytes; when practical, the padded plaintext `<client-query> <client-query-pad>` SHOULD be a multiple of 64 bytes.
 
 This target is a sender-side anti-amplification and privacy parameter, not an additional receiver-side validity check.
-
-The exact estimator a client uses to raise or lower it is implementation-defined, but the complete UDP DNSCrypt packet MUST remain within the maximum size supported by the transport path.
 
 ### Client Queries Over UDP
 
@@ -296,7 +298,7 @@ UDP-based client queries need to follow the padding guidelines outlined in the p
 
 Each UDP packet MUST hold one query, with the complete content comprising the `<dnscrypt-query>` structure specified in the Protocol Components section.
 
-UDP packets employing the DNSCrypt protocol have the capability to be split into distinct IP packets sharing the same source port.
+A DNSCrypt UDP datagram may be fragmented at the IP layer like any other UDP datagram, and a client MAY send multiple independent queries from the same source port.
 
 Upon receiving a query, the resolver may choose to either disregard it or send back a response encrypted using DNSCrypt.
 
@@ -329,7 +331,7 @@ TCP has no UDP amplification constraint, but padding still hides the exact DNS q
 
 A client SHOULD add a random padding component and SHOULD avoid deterministic plaintext lengths for repeated queries.
 
-The final plaintext only needs to be valid ISO/IEC 7816-4 padding; deployed receivers accept any authenticated plaintext that unpads correctly and parses as a DNS message.
+A resolver MUST accept any authenticated plaintext that is valid ISO/IEC 7816-4 padding and parses as a DNS message, whatever the padded length; deployed receivers already behave this way.
 
 For example, an originally unpadded 56-byte DNS query can be validly padded as:
 
@@ -369,12 +371,7 @@ When the transport size budget permits, the resolver SHOULD pad `<resolver-respo
 
 The padding length SHOULD be between 1 and 256 bytes, including the initial `0x80` byte.
 
-For a given response, that padding length SHOULD be deterministic for at least one of these tuples:
-
-- `(<resolver-sk>, <client-nonce>)`
-- `(<shared-key>, <client-nonce>)`
-
-A resolver can satisfy this requirement with a pseudorandom function.
+The padding length SHOULD be computed as a deterministic function of either `(<resolver-sk>, <client-nonce>)` or `(<shared-key>, <client-nonce>)`, for example with a pseudorandom function, so that retransmitted queries receive identically padded responses.
 
 The requirement prevents response padding from becoming an extra source of linkable server behavior while still allowing stateless operation.
 
@@ -390,9 +387,11 @@ Queries that cannot be authenticated, decrypted, unpadded, or parsed as DNS mess
 
 Any client-supplied nonce value MUST be accepted for decryption.
 
-A resolver MAY ignore or refuse queries encrypted with client public keys that are not authorized by local policy, but a public resolver that accepts anonymous clients MUST accept arbitrary client public keys.
+A resolver MAY ignore or refuse queries encrypted with client public keys that are not authorized by local policy, but a public resolver that accepts anonymous clients MUST accept arbitrary client public keys, subject only to the cryptographic checks of Appendix 2, such as low-order key rejection.
 
 Responses sent over UDP MUST be padded as described in "Padding For Resolver Responses" and encrypted as `<dnscrypt-response>`.
+
+As in standard DNS, the decrypted response MUST echo the transaction ID and question of the decrypted query; deployed clients discard responses that do not.
 
 The resolver MUST NOT send an encrypted DNSCrypt response over UDP that is larger than the encrypted DNSCrypt query packet that triggered it.
 
@@ -413,6 +412,8 @@ The complete encrypted response packet is then prefixed with a two-byte big-endi
 Cleartext DNS response payloads are not prefixed by their length before encryption, even when the DNSCrypt packet is sent over TCP.
 
 Unlike UDP responses, TCP responses MUST be sent unmodified even if their encrypted length exceeds the encrypted query length.
+
+The complete encrypted response MUST nevertheless be smaller than 4096 bytes, because deployed clients reject larger DNSCrypt packets; a resolver whose DNS response would exceed this limit truncates it and sets the TC flag before padding and encryption.
 
 The query and response processing rules described above depend on the certificate information obtained during session establishment.
 
@@ -458,7 +459,7 @@ A client MAY use UDP or TCP according to local policy.
 
 A common strategy is to try UDP first and retry over TCP after failure, timeout, or truncation.
 
-Resolvers are not required to serve certificates both on UDP and TCP.
+A resolver MUST serve certificates over both UDP and TCP; the UDP response MAY be truncated, with the TC flag set, to direct the client to TCP. Deployed clients begin certificate retrieval over UDP and only retry over TCP after a truncated response.
 
 The standard name in the question (`<provider name>`) follows this scheme:
 
@@ -519,9 +520,9 @@ A successful response to a certificate request contains one or more `TXT` record
 - `<protocol-minor-version>`: `0x00 0x00`
 - `<signature>`: a 64-byte signature of `(<resolver-pk> <client-magic> <serial> <ts-start> <ts-end> <extensions>)` using the Ed25519 algorithm and the provider secret key. Ed25519 MUST be used in this version of the protocol.
 - `<resolver-pk>`: the resolver short-term public key, which is 32 bytes when using X25519.
-- `<client-magic>`: The first 8 bytes of a client query that was built using the information from this certificate. It MAY be a truncated public key. Two valid certificates cannot share the same `<client-magic>`. `<client-magic>` MUST NOT start with `0x00 0x00 0x00 0x00 0x00 0x00 0x00` (seven all-zero bytes) in order to avoid confusion with the QUIC protocol {{!RFC9000}}.
-- `<serial>`: a 4-byte serial number in big-endian format. If more than one certificate is valid, the client MUST prefer the certificate with a higher serial number.
-- `<ts-start>`: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp.
+- `<client-magic>`: an 8-byte value identifying this certificate; the client copies it verbatim into the first 8 bytes of every query built from this certificate. It is an opaque identifier and MAY be a truncated resolver public key. A provider MUST NOT issue two concurrently valid certificates with the same `<client-magic>`, MUST NOT use a value starting with `0x00 0x00 0x00 0x00 0x00 0x00 0x00` (seven all-zero bytes) in order to avoid confusion with the QUIC protocol {{!RFC9000}}, and MUST NOT use the reserved `<resume-magic>` value defined in Stateless Resumption.
+- `<serial>`: a 4-byte serial number in big-endian format. If more than one certificate is valid for the encryption system the client selected, the client MUST prefer the certificate with a higher serial number.
+- `<ts-start>`: the date the certificate is valid from, as a big-endian 4-byte unsigned Unix timestamp. It MUST be strictly earlier than `<ts-end>`; deployed clients reject certificates whose validity interval is empty or inverted.
 - `<ts-end>`: the date the certificate is valid until (inclusive), as a big-endian 4-byte unsigned Unix timestamp.
 - `<extensions>`: empty in the current protocol version, but may contain additional data in future revisions, including minor versions. The computation and verification of the signature MUST include the extensions. An implementation not supporting these extensions MUST ignore them.
 
@@ -540,8 +541,8 @@ The following encryption systems are defined by this document:
    verification.
 
 `0x00 0x03`, X-Wing PQDNSCrypt:
-:  The resolver public key is 1216 bytes, and the client key-exchange field in
-   queries is 1120 bytes. The nonce is split into a 12-byte client nonce and a
+:  The resolver public key is 1216 bytes, and the client key-exchange field
+   (`<client-kex>`) in queries is 1120 bytes. The nonce is split into a 12-byte client nonce and a
    12-byte resolver nonce. The shared key is derived with HKDF-SHA256 as
    defined in "PQ Key Derivation". The certificate extensions field contains
    the required 12-byte PQ profile extension.
@@ -550,7 +551,7 @@ Each `TXT` answer record carries exactly one certificate blob.
 
 A client reads `<cert-magic>`, `<es-version>`, and `<protocol-minor-version>` first.
 
-If `<es-version>` is not supported and the client has no local definition for that encryption system's field lengths, the client MUST ignore that certificate blob as a whole.
+If `<es-version>` is not supported, the client MUST ignore that certificate blob as a whole.
 
 It MUST NOT try to guess the `<resolver-pk>` length.
 
@@ -651,8 +652,7 @@ Implementations should consider the following security aspects:
 
 1. **Key Management**:
    - Resolvers MUST rotate their short-term key pairs at most every 24 hours
-   - Previous resolver secret keys MUST be retained only while unexpired certificates still refer to them, unless the key is believed to be compromised
-   - Previous resolver secret keys MUST be discarded as soon as no valid, served certificate can require them
+   - Previous resolver secret keys MUST be retained while unexpired served certificates still refer to them, and MUST be discarded as soon as no such certificate remains, or immediately if the key is believed to be compromised; the full rule appears in Operational Considerations
    - Provider secret keys used for certificate signing SHOULD be stored in hardware security modules (HSMs)
    - Example: A resolver might generate new key pairs daily at midnight UTC
 
@@ -670,7 +670,7 @@ Implementations should consider the following security aspects:
 4. **Certificate Validation**:
    - Clients MUST verify certificate signatures using the provider's public key
    - Certificates MUST be checked for validity periods
-   - Clients MUST prefer certificates with higher serial numbers
+   - Clients MUST prefer certificates with higher serial numbers within the selected encryption system
    - Example: A client might cache valid certificates and check for updates hourly
 
 Proper implementation of these security measures provides the foundation for the protocol's attack mitigation capabilities.
@@ -737,9 +737,9 @@ Special attention should be paid to the uniqueness of the generated secret keys.
 
 Client public keys can be used by resolvers to authenticate clients, link queries to customer accounts, and unlock business-specific features such as redirecting specific domain names to a sinkhole.
 
-Resolvers accessible from any client IP address can also opt for only responding to a set of whitelisted public keys.
+A resolver that restricts service to known clients MAY respond only to an allowed set of client public keys.
 
-Resolvers accepting queries from any client MUST accept any client public key.
+A resolver that serves arbitrary, anonymous clients MUST accept any client public key as a matter of policy; cryptographic checks, such as the rejection of low-order public keys in Appendix 2, still apply.
 
 In particular, an anonymous client can generate a new key pair for every session, or even for every query.
 
@@ -862,6 +862,8 @@ Relays MUST:
    - Validate the response format (either starts with resolver magic or is a certificate response)
    - Forward valid responses unmodified to the client, adding only the TCP length prefix when the client connection used TCP
 
+A relay MAY briefly cache a validated certificate response and replay it for identical certificate queries, rewriting only the DNS transaction ID; deployed relays cache certificate responses for a few minutes.
+
 Address validation is performed after decoding `<server-ip>`.
 
 If the decoded address is an IPv4-mapped IPv6 address, the relay applies the IPv4 policy to the embedded IPv4 address.
@@ -919,7 +921,7 @@ The client runs the KEM encapsulation against `<resolver-pk>`, obtaining a ciphe
 
 The resolver runs the KEM decapsulation on the received ciphertext using its secret key and recovers the same shared secret.
 
-The `<client-pk>` field therefore carries a KEM ciphertext rather than a client public key, and its length is determined by the `<es-version>` of the chosen certificate.
+The `<client-pk>` field therefore carries a KEM ciphertext rather than a client public key, and its length is determined by the `<es-version>` of the chosen certificate; the PQ text refers to the value carried in this field as `<client-kex>`.
 
 The resolver remains stateless: it derives the shared secret from a single client message, with no per-client state.
 
@@ -1117,7 +1119,7 @@ The ticket is opaque, resolver-private state: its internal format and AEAD are a
 
 This document's reference construction reuses the `XChaCha20_DJB-Poly1305` AEAD of Appendix 1 with no associated data; `<ticket-key-id>` selects the ticket key, so its integrity follows from decryption failing under the wrong key, and a dedicated `TK` keeps ticket sealing separate from query traffic.
 
-The client stores the ticket together with the `resume-secret` it derived and the ticket expiry.
+The client stores the ticket together with the `resume-secret` it derived and an expiry it computes locally from the advertised `<ticket-lifetime>` and the time the ticket was received, further capped by the certificate expiry and local policy; the `<ticket-expiry>` field itself is sealed inside the ticket and not readable by the client.
 
 The ticket is delivered in the response control block:
 
@@ -1169,9 +1171,15 @@ It then derives the per-query key:
 
 The client performs the same derivation.
 
+In this derivation, `<client-nonce>` is the fresh nonce carried in the resumed query itself, not the nonce of the query that produced the ticket, and `<client-magic>` is the value from the certificate under which the ticket was issued, which the client keeps together with the ticket and the `resume-secret`.
+
 The nonce construction is unchanged.
 
 Each resumed query thus uses a fresh key derived from its own `<client-nonce>`; clients MUST still use a distinct `<client-nonce>` for each resumed query, because repeating it would repeat both the key and the AEAD nonce.
+
+Responses to resumed queries reuse this per-query key, so the `<resolver-nonce>` MUST be unique per response and MUST NOT be all NUL bytes; a random 12-byte value satisfies this. A replayed resumed query re-derives the same key, and answering it twice with the same `<resolver-nonce>` but a different response plaintext would reuse a key and nonce pair.
+
+Responses to resumed queries use the `<pq-response-plain>` layout like any PQ response; a resolver that issues no new ticket sets `<control-len>` to zero.
 
 If a ticket cannot be opened or validated, the resolver MUST silently drop the query, with no response distinguishable from any other dropped query.
 
@@ -1179,7 +1187,7 @@ A client that receives no response retries with a query that carries a ciphertex
 
 ### Resumption Considerations
 
-A ticket bounds forward secrecy for resumed traffic: compromise of `TK` exposes only the resumed queries whose tickets are still valid under that ticket-key epoch, and never the queries that carried a ciphertext.
+A ticket bounds forward secrecy for resumed traffic: an attacker who records resumed queries and later obtains a `TK` can open every ticket sealed under that `TK`, expired or not, and decrypt the recorded queries, but never the queries that carried a ciphertext. Destroying each `TK` when it is rotated out is what limits this exposure, so ticket keys MUST be erased promptly at rotation.
 
 The ticket lifetime SHOULD be short and MUST NOT exceed the resolver certificate lifetime or the ticket-key lifetime.
 
@@ -1243,7 +1251,7 @@ KEM and X25519 operations SHOULD be constant-time with respect to secret data.
 
 Forward secrecy for queries that carry a ciphertext has the same granularity as classical resolver-key rotation, since the resolver KEM key is short-term and the client's encapsulation randomness is fresh per query.
 
-Resumed queries inherit the shorter of the ticket lifetime and the ticket-key lifetime.
+For resumed queries, recorded traffic remains decryptable until every `TK` able to open its ticket has been destroyed, so their forward secrecy follows the ticket-key lifetime.
 
 Nonce uniqueness is required as in classical DNSCrypt.
 
@@ -1489,13 +1497,13 @@ certificate query (45 bytes):
 
 The successful response carrying the 124-byte certificate above is 182 bytes.
 
-This is the classical certificate response used by deployed DNSCrypt v2 resolvers.
+This is the classical certificate response used by deployed DNSCrypt v2 resolvers: the flags word `0x8180` sets QR and RA, echoes RD from the query, and leaves RCODE at 0. The TXT record TTL is an operational choice, 86400 seconds in this vector.
 
 If larger PQ certificate records are also available, a resolver can return this classical response with the TC flag set when the complete classical-plus-PQ response would exceed the triggering UDP request.
 
 ~~~
 certificate response with one TXT answer (182 bytes):
-  abcd8481000100010000000001320d646e7363727970742d6365727407657861
+  abcd8180000100010000000001320d646e7363727970742d6365727407657861
   6d706c6503636f6d0000100001c00c0010000100015180007d7c444e53430002
   00003a570ea17f47b80217977fbb455840bfd50ab32f5fbf2aabc173a6a49b7a
   49ca55362a6c5dec47657cf515e9f99382a316dfecd964b94d1c4659cac45961
@@ -1822,7 +1830,7 @@ resumed shared-key = HKDF-SHA256(
                          L    = 32)          = [resumed-shared-key: 32 bytes]
 
 query-nonce = resumed-client-nonce || (12 * 00)   (24 bytes)
-plaintext   = dns-query || 80 || pad         (padded to 256: resumed floor)
+plaintext   = dns-query || 80 || pad        (padded to 256 for this vector)
 encrypted-query = tag (16) || ciphertext (256)    = [enc-query: 272 bytes]
 ~~~
 
@@ -1853,7 +1861,7 @@ None of them produce a distinguishable on-the-wire signal beyond "no response" o
 5. Ticket context mismatch: any sealed certificate-context field in the ticket (`<es-version>`, `<client-magic>`, `<serial>`, `<ts-end>`, or `<profile-extension-hash>`) does not match the resumption context. The resolver MUST silently drop the query.
 6. Malformed KEM ciphertext: one byte of `<client-pk>` in a query that carries a ciphertext is flipped. X-Wing implicit rejection yields a different shared secret, authentication fails, and the resolver MUST silently drop the query, with no distinct error or timing.
 7. Repeated nonce (client obligation): reusing a `<client-nonce>` under one ticket reuses both the derived key and the AEAD nonce; this is a client MUST NOT. A stateless resolver cannot detect it, so there is no wire vector; it is listed to make the obligation explicit.
-8. Under-padded resumed query: a resumed UDP query padded below the 256-byte floor decrypts correctly but violates the anti-amplification rule, and an Anonymized DNSCrypt relay MAY drop it on the response-size check.
+8. Under-padded resumed query: a resumed UDP query whose complete packet is below the 256-byte query-size target decrypts correctly but violates the anti-amplification guidance, and an Anonymized DNSCrypt relay MAY drop its response on the response-size check.
 
 ## Generated Values
 
