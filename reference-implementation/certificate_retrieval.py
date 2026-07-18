@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from constants import (
+    ANON_MAGIC,
     CERTIFICATE_RECORD_TTL,
     DNS_CLASS_IN,
     DNS_HEADER_SIZE,
@@ -18,8 +19,12 @@ from errors import WireFormatError
 __all__ = [
     "build_certificate_response",
     "certificate_query",
+    "certificate_query_for_transport",
     "serve_certificates",
 ]
+
+ANONYMIZED_DNSCRYPT_HEADER_SIZE = len(ANON_MAGIC) + 16 + 2
+CERTIFICATE_ROLLOVER_QUERY_SIZE = 3200
 
 
 def _dns_name(name: str) -> bytes:
@@ -102,7 +107,7 @@ def certificate_query(
 ) -> bytes:
     """Build an unencrypted TXT certificate query, optionally EDNS(0)-padded.
 
-    A client that wants the larger PQ certificates over UDP pads the query to at
+    A client retrieving the larger PQ certificates over UDP pads the query to at
     least the expected response size, so the response stays within the request and
     passes the anti-amplification check at the resolver and at any relay.
     """
@@ -128,6 +133,37 @@ def certificate_query(
         + arcount
     )
     return header + question + additional
+
+
+def certificate_query_for_transport(
+    provider_name: str,
+    query_id: bytes = b"\x00\x00",
+    *,
+    over_tcp: bool,
+    via_relay: bool,
+    expected_relay_response_size: int = CERTIFICATE_ROLLOVER_QUERY_SIZE,
+    udp_payload_size: int = CERTIFICATE_ROLLOVER_QUERY_SIZE,
+) -> bytes:
+    """Build a certificate query with transport-appropriate padding.
+
+    The initial UDP query covers the rollover certificate set, including the
+    Anonymized DNSCrypt prefix when present. Direct TCP needs no amplification
+    padding. TCP to a relay still carries a padded inner query because the relay
+    forwards it upstream over UDP and applies the query length as its response
+    budget.
+    """
+
+    if over_tcp:
+        padded_length = expected_relay_response_size if via_relay else 0
+    else:
+        relay_overhead = ANONYMIZED_DNSCRYPT_HEADER_SIZE if via_relay else 0
+        padded_length = udp_payload_size - relay_overhead
+        if padded_length <= 0:
+            raise ValueError("UDP payload size cannot hold the relay header")
+    query = certificate_query(provider_name, query_id, padded_length)
+    if not over_tcp and len(query) + relay_overhead > udp_payload_size:
+        raise ValueError("UDP payload size is too small for the certificate query")
+    return query
 
 
 def build_certificate_response(

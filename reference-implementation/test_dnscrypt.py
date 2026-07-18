@@ -299,6 +299,29 @@ class DNSCryptReferenceTests(unittest.TestCase):
             1338,
         )
 
+        # Initial UDP retrieval covers the rollover set, including the relay prefix.
+        direct_udp = d.certificate_query_for_transport(
+            provider_name, over_tcp=False, via_relay=False
+        )
+        self.assertEqual(len(direct_udp), 3200)
+        relay_udp = d.certificate_query_for_transport(
+            provider_name, over_tcp=False, via_relay=True
+        )
+        self.assertEqual(
+            len(d.anonymized_dnscrypt_query("192.0.2.1", 443, relay_udp)), 3200
+        )
+
+        # Direct TCP needs no padding. TCP to a relay keeps the inner query large
+        # enough for the relay's UDP response budget.
+        direct_tcp = d.certificate_query_for_transport(
+            provider_name, over_tcp=True, via_relay=False
+        )
+        self.assertEqual(direct_tcp, base_query)
+        relay_tcp = d.certificate_query_for_transport(
+            provider_name, over_tcp=True, via_relay=True
+        )
+        self.assertEqual(len(relay_tcp), 3200)
+
         # A query padded past the response carries the PQ certificate over UDP.
         padded = d.certificate_query(provider_name, padded_length=1600)
         served = d.serve_certificates(padded, [classical], [pq], over_udp=True)

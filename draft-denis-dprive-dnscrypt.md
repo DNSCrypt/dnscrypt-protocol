@@ -457,7 +457,7 @@ To initiate a DNSCrypt session, a client transmits an ordinary unencrypted `TXT`
 
 A client MAY use UDP or TCP according to local policy.
 
-A common strategy is to try UDP first and retry over TCP after failure, timeout, or truncation.
+Clients SHOULD try UDP first and retry over TCP after failure, timeout, or truncation. A PQ-capable client uses the rollover-sized padding target defined in Certificate Retrieval Amplification; although this can cause IP fragmentation, fragmented UDP works on most paths. A client on a path already known to block fragmented UDP MAY use TCP immediately.
 
 A resolver MUST serve certificates over both UDP and TCP; the UDP response MAY be truncated, with the TC flag set, to direct the client to TCP. Deployed clients begin certificate retrieval over UDP and only retry over TCP after a truncated response.
 
@@ -982,7 +982,7 @@ For compatibility with deployed DNSCrypt v2 clients and resolvers, a resolver MA
 
 A resolver MUST NOT add PQ certificates or other large certificate records to a UDP certificate response unless the complete response is no larger than the request that triggered it.
 
-A client that wants a PQ certificate over UDP therefore pads its certificate query to at least the size of the expected response, exactly as a query that carries a ciphertext is already large enough to cover its response.
+A client retrieving PQ certificates over UDP therefore MUST pad its certificate query to at least the size of the expected response, exactly as a query that carries a ciphertext is already large enough to cover its response.
 
 The advertised EDNS(0) {{!RFC6891}} UDP payload size is a fragmentation-avoidance hint and MUST NOT be used as the amplification limit, because a spoofed query can advertise an arbitrarily large buffer while remaining small.
 
@@ -995,7 +995,7 @@ For relay-compatible PQ deployments, resolvers SHOULD use the following certific
 
 Resolvers SHOULD NOT exceed the rollover certificate set over UDP, and SHOULD keep certificate responses below 4096 octets.
 
-A client cannot tell from outside whether a rotation is in progress, so a client that wants PQ certificates over UDP across rotations SHOULD pad its certificate query to cover the rollover set rather than only the steady-state set; otherwise it silently drops to the classical certificate for the duration of every rollover window.
+A client cannot tell from outside whether a rotation is in progress. A client retrieving PQ certificates over UDP therefore MUST pad its certificate query to cover the rollover set rather than only the steady-state set; otherwise it silently drops to the classical certificate for the duration of every rollover window. This padding exceeds common fragmentation-avoidance targets, but clients SHOULD try UDP first because fragmented UDP works on most paths, and retry over TCP only after timeout or truncation.
 
 If the certificate response containing the PQ set would be larger than the request, the resolver MUST NOT return that oversized PQ response over UDP; it SHOULD instead return the classical certificate response with the TC flag set, so a classical-only client can proceed while a PQ-capable client learns that more certificates may be available.
 
@@ -1217,13 +1217,15 @@ If the client connects to the relay over TCP, the relay still forwards the inner
 
 Certificate retrieval through a relay is different: the relay forwards the certificate query to the resolver over UDP and forwards a matching certificate response back to the client, and it applies the same response-size check, dropping any response larger than the query it relayed.
 
-A client that wants a PQ certificate over UDP through a relay therefore pads its certificate query to at least the size of the expected certificate response, as described in Certificate Retrieval Amplification, so the response passes both the resolver's and the relay's anti-amplification check.
+A client retrieving a PQ certificate over UDP through a relay therefore MUST pad its certificate query to at least the size of the expected certificate response, as described in Certificate Retrieval Amplification, so the response passes both the resolver's and the relay's anti-amplification check.
 
 A client that does not, or cannot, pad far enough receives only the certificates that fit within the inner UDP query size, typically a classical certificate with the TC flag set; if even that response is larger than the inner query, the relay drops it.
 
 Retrying over TCP to an Anonymized DNSCrypt relay does not make the relay use TCP upstream: relays still forward the inner certificate query to the resolver over UDP.
 
-Therefore, a client that retrieves certificates through a relay MUST make the inner certificate query large enough for the expected UDP certificate response, or retrieve certificates directly from the resolver over TCP before using the relay for encrypted queries.
+Nevertheless, carrying a rollover-sized inner certificate query over the client-to-relay TCP connection avoids IP fragmentation on that leg while giving the relay a large enough request to forward upstream and a sufficient anti-amplification budget for the response. The inner query remains EDNS(0)-padded to the expected UDP response size; only its transport to the relay changes.
+
+Therefore, after a rollover-sized UDP attempt times out or returns a truncated certificate response, a client retrieving certificates through a relay SHOULD retry over TCP to the relay with an inner query large enough for the expected UDP certificate response. Alternatively, it can retrieve certificates directly from the resolver over TCP before using the relay for encrypted queries, with the associated privacy tradeoff.
 
 ## PQ Downgrade Protection
 
