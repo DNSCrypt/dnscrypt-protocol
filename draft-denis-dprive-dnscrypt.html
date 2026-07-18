@@ -23,11 +23,11 @@
     Jinja2 3.1.6
     lxml 6.1.1
     natsort 8.4.0
-    platformdirs 4.10.0
+    platformdirs 4.10.1
     pycountry 24.6.1
     PyYAML 6.0.3
     requests 2.33.1
-    wcwidth 0.8.1
+    wcwidth 0.8.2
 -->
 <link href="draft-denis-dprive-dnscrypt.xml" rel="alternate" type="application/rfc+xml">
 <link href="#copyright" rel="license">
@@ -1050,7 +1050,7 @@ svg {
 </tr></thead>
 <tfoot><tr>
 <td class="left">Denis</td>
-<td class="center">Expires 2 January 2027</td>
+<td class="center">Expires 19 January 2027</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1063,12 +1063,12 @@ svg {
 <dd class="internet-draft">draft-denis-dprive-dnscrypt-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-07-01" class="published">1 July 2026</time>
+<time datetime="2026-07-18" class="published">18 July 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Informational</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2027-01-02">2 January 2027</time></dd>
+<dd class="expires"><time datetime="2027-01-19">19 January 2027</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1115,7 +1115,7 @@ svg {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 2 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 19 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1885,7 +1885,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 </div>
 <p id="section-5.5-3">To initiate a DNSCrypt session, a client transmits an ordinary unencrypted <code>TXT</code> DNS query to the resolver's IP address and DNSCrypt port.<a href="#section-5.5-3" class="pilcrow">¶</a></p>
 <p id="section-5.5-4">A client <span class="bcp14">MAY</span> use UDP or TCP according to local policy.<a href="#section-5.5-4" class="pilcrow">¶</a></p>
-<p id="section-5.5-5">A common strategy is to try UDP first and retry over TCP after failure, timeout, or truncation.<a href="#section-5.5-5" class="pilcrow">¶</a></p>
+<p id="section-5.5-5">Clients <span class="bcp14">SHOULD</span> try UDP first and retry over TCP after failure, timeout, or truncation. A PQ-capable client uses the rollover-sized padding target defined in Certificate Retrieval Amplification; although this can cause IP fragmentation, fragmented UDP works on most paths. A client on a path already known to block fragmented UDP <span class="bcp14">MAY</span> use TCP immediately.<a href="#section-5.5-5" class="pilcrow">¶</a></p>
 <p id="section-5.5-6">A resolver <span class="bcp14">MUST</span> serve certificates over both UDP and TCP; the UDP response <span class="bcp14">MAY</span> be truncated, with the TC flag set, to direct the client to TCP. Deployed clients begin certificate retrieval over UDP and only retry over TCP after a truncated response.<a href="#section-5.5-6" class="pilcrow">¶</a></p>
 <p id="section-5.5-7">The standard name in the question (<code>&lt;provider name&gt;</code>) follows this scheme:<a href="#section-5.5-7" class="pilcrow">¶</a></p>
 <p id="section-5.5-8"><code>&lt;protocol-major-version&gt; . dnscrypt-cert . &lt;zone&gt;</code><a href="#section-5.5-8" class="pilcrow">¶</a></p>
@@ -2594,7 +2594,7 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
 <p id="section-11.3-1">Certificate retrieval is an unauthenticated DNS query, and PQ certificates are much larger than classical ones, so a resolver that returns one or more PQ certificates over UDP could be abused as a traffic amplifier in response to queries with a spoofed source address.<a href="#section-11.3-1" class="pilcrow">¶</a></p>
 <p id="section-11.3-2">For compatibility with deployed DNSCrypt v2 clients and resolvers, a resolver <span class="bcp14">MAY</span> return the small classical certificate response to an ordinary UDP certificate query.<a href="#section-11.3-2" class="pilcrow">¶</a></p>
 <p id="section-11.3-3">A resolver <span class="bcp14">MUST NOT</span> add PQ certificates or other large certificate records to a UDP certificate response unless the complete response is no larger than the request that triggered it.<a href="#section-11.3-3" class="pilcrow">¶</a></p>
-<p id="section-11.3-4">A client that wants a PQ certificate over UDP therefore pads its certificate query to at least the size of the expected response, exactly as a query that carries a ciphertext is already large enough to cover its response.<a href="#section-11.3-4" class="pilcrow">¶</a></p>
+<p id="section-11.3-4">A client retrieving PQ certificates over UDP therefore <span class="bcp14">MUST</span> pad its certificate query to at least the size of the expected response, exactly as a query that carries a ciphertext is already large enough to cover its response.<a href="#section-11.3-4" class="pilcrow">¶</a></p>
 <p id="section-11.3-5">The advertised EDNS(0) <span>[<a href="#RFC6891" class="cite xref">RFC6891</a>]</span> UDP payload size is a fragmentation-avoidance hint and <span class="bcp14">MUST NOT</span> be used as the amplification limit, because a spoofed query can advertise an arbitrarily large buffer while remaining small.<a href="#section-11.3-5" class="pilcrow">¶</a></p>
 <p id="section-11.3-6">To let a client size that padding, a resolver <span class="bcp14">SHOULD</span> keep its UDP certificate set small and predictable.<a href="#section-11.3-6" class="pilcrow">¶</a></p>
 <p id="section-11.3-7">For relay-compatible PQ deployments, resolvers <span class="bcp14">SHOULD</span> use the following certificate sets:<a href="#section-11.3-7" class="pilcrow">¶</a></p>
@@ -2607,7 +2607,7 @@ the required 12-byte PQ profile extension.<a href="#section-5.5-36.4.1" class="p
 </li>
         </ul>
 <p id="section-11.3-9">Resolvers <span class="bcp14">SHOULD NOT</span> exceed the rollover certificate set over UDP, and <span class="bcp14">SHOULD</span> keep certificate responses below 4096 octets.<a href="#section-11.3-9" class="pilcrow">¶</a></p>
-<p id="section-11.3-10">A client cannot tell from outside whether a rotation is in progress, so a client that wants PQ certificates over UDP across rotations <span class="bcp14">SHOULD</span> pad its certificate query to cover the rollover set rather than only the steady-state set; otherwise it silently drops to the classical certificate for the duration of every rollover window.<a href="#section-11.3-10" class="pilcrow">¶</a></p>
+<p id="section-11.3-10">A client cannot tell from outside whether a rotation is in progress. A client retrieving PQ certificates over UDP therefore <span class="bcp14">MUST</span> pad its certificate query to cover the rollover set rather than only the steady-state set; otherwise it silently drops to the classical certificate for the duration of every rollover window. This padding exceeds common fragmentation-avoidance targets, but clients <span class="bcp14">SHOULD</span> try UDP first because fragmented UDP works on most paths, and retry over TCP only after timeout or truncation.<a href="#section-11.3-10" class="pilcrow">¶</a></p>
 <p id="section-11.3-11">If the certificate response containing the PQ set would be larger than the request, the resolver <span class="bcp14">MUST NOT</span> return that oversized PQ response over UDP; it <span class="bcp14">SHOULD</span> instead return the classical certificate response with the TC flag set, so a classical-only client can proceed while a PQ-capable client learns that more certificates may be available.<a href="#section-11.3-11" class="pilcrow">¶</a></p>
 <p id="section-11.3-12">Operators <span class="bcp14">MAY</span> serve the classical certificate over UDP while requiring a padded query or TCP for larger PQ certificate sets.<a href="#section-11.3-12" class="pilcrow">¶</a></p>
 <p id="section-11.3-13">This affects neither the certificate format nor the lookup name.<a href="#section-11.3-13" class="pilcrow">¶</a></p>
@@ -2824,10 +2824,11 @@ ticket ::= &lt;ticket-key-id&gt; &lt;ticket-nonce&gt;
 <p id="section-11.8-4">A resumed query is small, so a client using Anonymized DNSCrypt <span class="bcp14">MUST</span> keep enough padding on the inner resumed query for the relay's encrypted-response size check to pass.<a href="#section-11.8-4" class="pilcrow">¶</a></p>
 <p id="section-11.8-5">If the client connects to the relay over TCP, the relay still forwards the inner query upstream over UDP, so the inner query size requirement remains.<a href="#section-11.8-5" class="pilcrow">¶</a></p>
 <p id="section-11.8-6">Certificate retrieval through a relay is different: the relay forwards the certificate query to the resolver over UDP and forwards a matching certificate response back to the client, and it applies the same response-size check, dropping any response larger than the query it relayed.<a href="#section-11.8-6" class="pilcrow">¶</a></p>
-<p id="section-11.8-7">A client that wants a PQ certificate over UDP through a relay therefore pads its certificate query to at least the size of the expected certificate response, as described in Certificate Retrieval Amplification, so the response passes both the resolver's and the relay's anti-amplification check.<a href="#section-11.8-7" class="pilcrow">¶</a></p>
+<p id="section-11.8-7">A client retrieving a PQ certificate over UDP through a relay therefore <span class="bcp14">MUST</span> pad its certificate query to at least the size of the expected certificate response, as described in Certificate Retrieval Amplification, so the response passes both the resolver's and the relay's anti-amplification check.<a href="#section-11.8-7" class="pilcrow">¶</a></p>
 <p id="section-11.8-8">A client that does not, or cannot, pad far enough receives only the certificates that fit within the inner UDP query size, typically a classical certificate with the TC flag set; if even that response is larger than the inner query, the relay drops it.<a href="#section-11.8-8" class="pilcrow">¶</a></p>
 <p id="section-11.8-9">Retrying over TCP to an Anonymized DNSCrypt relay does not make the relay use TCP upstream: relays still forward the inner certificate query to the resolver over UDP.<a href="#section-11.8-9" class="pilcrow">¶</a></p>
-<p id="section-11.8-10">Therefore, a client that retrieves certificates through a relay <span class="bcp14">MUST</span> make the inner certificate query large enough for the expected UDP certificate response, or retrieve certificates directly from the resolver over TCP before using the relay for encrypted queries.<a href="#section-11.8-10" class="pilcrow">¶</a></p>
+<p id="section-11.8-10">Nevertheless, carrying a rollover-sized inner certificate query over the client-to-relay TCP connection avoids IP fragmentation on that leg while giving the relay a large enough request to forward upstream and a sufficient anti-amplification budget for the response. The inner query remains EDNS(0)-padded to the expected UDP response size; only its transport to the relay changes.<a href="#section-11.8-10" class="pilcrow">¶</a></p>
+<p id="section-11.8-11">Therefore, after a rollover-sized UDP attempt times out or returns a truncated certificate response, a client retrieving certificates through a relay <span class="bcp14">SHOULD</span> retry over TCP to the relay with an inner query large enough for the expected UDP certificate response. Alternatively, it can retrieve certificates directly from the resolver over TCP before using the relay for encrypted queries, with the associated privacy tradeoff.<a href="#section-11.8-11" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="pq-downgrade-protection">
