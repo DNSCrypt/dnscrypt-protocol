@@ -395,7 +395,9 @@ As in standard DNS, the decrypted response MUST echo the transaction ID and ques
 
 The resolver MUST NOT send an encrypted DNSCrypt response over UDP that is larger than the encrypted DNSCrypt query packet that triggered it.
 
-If the full encrypted response packet would be larger than the query packet, the resolver either stays silent or truncates the DNS response and sets the DNS `TC` flag before padding and encryption.
+If the full encrypted response packet would be larger than the query packet even with minimal padding, the resolver MUST truncate the DNS response and set the DNS `TC` flag before padding and encryption.
+
+A resolver MUST NOT stay silent instead: the query was authenticated, and a dropped response leaves the client waiting out a retransmission timeout, whereas a truncated response makes it retry over TCP immediately.
 
 If the resolver sends a truncated response, the encrypted truncated response MUST still be equal to or shorter than the encrypted query packet.
 
@@ -1051,6 +1053,10 @@ When it is zero, `<control>` is absent and the DNS response begins immediately a
 When it is nonzero, `<control>` carries PQ control data, currently a stateless resumption ticket.
 
 The response padding is computed over the whole `<control-len> <control> <resolver-response>` plaintext, so the decrypted payload keeps the usual length alignment.
+
+Over UDP, the complete encrypted packet is subject to the response-size rule, so the `<control-len>` field, the `<control>` block, and the padding all count against the size of the query that triggered the response.
+
+When that budget is too tight to include a control block, the resolver MUST send the response with `<control-len>` zero, withholding ticket issuance or renewal, before resorting to DNS truncation: a withheld ticket costs at most one future key exchange, while a truncated response always costs the client a TCP round trip.
 
 A PQ client removes the control block after decryption and forwards the unmodified DNS response.
 
