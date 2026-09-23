@@ -14,6 +14,7 @@ from constants import (
     EDNS_PADDING_OPTION_CODE,
     EDNS_UDP_PAYLOAD_SIZE,
 )
+from crypto import require_size
 from errors import WireFormatError
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
 
 ANONYMIZED_DNSCRYPT_HEADER_SIZE = len(ANON_MAGIC) + 16 + 2
 CERTIFICATE_ROLLOVER_QUERY_SIZE = 3200
+CERTIFICATE_ROLLOVER_ANSWER_SIZE = 2950
 
 
 def _dns_name(name: str) -> bytes:
@@ -36,6 +38,8 @@ def _dns_name(name: str) -> bytes:
         if not 1 <= len(encoded) <= 63:
             raise ValueError("each DNS label must be 1 to 63 bytes")
         wire += bytes([len(encoded)]) + encoded
+    if len(wire) + 1 > 255:
+        raise ValueError("DNS name exceeds 255 bytes")
     return wire + b"\x00"
 
 
@@ -112,6 +116,7 @@ def certificate_query(
     passes the anti-amplification check at the resolver and at any relay.
     """
 
+    require_size("query_id", query_id, 2)
     question = (
         _dns_name(provider_name)
         + DNS_TYPE_TXT.to_bytes(2, "big")
@@ -141,22 +146,36 @@ def certificate_query_for_transport(
     *,
     over_tcp: bool,
     via_relay: bool,
-    expected_relay_response_size: int = CERTIFICATE_ROLLOVER_QUERY_SIZE,
-    udp_payload_size: int = CERTIFICATE_ROLLOVER_QUERY_SIZE,
+    expected_relay_response_size: int | None = None,
+    udp_payload_size: int | None = None,
 ) -> bytes:
     """Build a certificate query with transport-appropriate padding.
 
     The initial UDP query covers the rollover certificate set, including the
-    Anonymized DNSCrypt prefix when present. Direct TCP needs no amplification
-    padding. TCP to a relay still carries a padded inner query because the relay
+    Anonymized DNSCrypt prefix when present.
+    Direct TCP needs no amplification padding.
+    TCP to a relay still carries a padded inner query because the relay
     forwards it upstream over UDP and applies the query length as its response
     budget.
     """
 
+    rollover_response_size = (
+        len(certificate_query(provider_name, query_id))
+        + CERTIFICATE_ROLLOVER_ANSWER_SIZE
+    )
+    if expected_relay_response_size is None:
+        expected_relay_response_size = max(
+            CERTIFICATE_ROLLOVER_QUERY_SIZE, rollover_response_size
+        )
     if over_tcp:
         padded_length = expected_relay_response_size if via_relay else 0
     else:
         relay_overhead = ANONYMIZED_DNSCRYPT_HEADER_SIZE if via_relay else 0
+        if udp_payload_size is None:
+            udp_payload_size = max(
+                CERTIFICATE_ROLLOVER_QUERY_SIZE,
+                rollover_response_size + relay_overhead,
+            )
         padded_length = udp_payload_size - relay_overhead
         if padded_length <= 0:
             raise ValueError("UDP payload size cannot hold the relay header")

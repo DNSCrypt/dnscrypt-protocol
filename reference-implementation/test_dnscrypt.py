@@ -1,5 +1,8 @@
 import hashlib
 import unittest
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
 
 import dnscrypt as d
 
@@ -31,7 +34,7 @@ def classical_certificate(
     ts_end=0x68015180,
     client_magic=CLASSICAL_CLIENT_MAGIC,
 ):
-    """Sign the Appendix 2 certificate, with overrides for negative cases."""
+    """Sign the Appendix B certificate, with overrides for negative cases."""
 
     return d.DNSCryptCertificate.sign(
         provider_signing_seed=PROVIDER_SEED,
@@ -45,7 +48,7 @@ def classical_certificate(
 
 
 def pq_certificate(serial=1, client_magic=PQ_CLIENT_MAGIC):
-    """Sign the Appendix 3 certificate, with overrides for negative cases."""
+    """Sign the Appendix C certificate, with overrides for negative cases."""
 
     return d.DNSCryptCertificate.sign(
         provider_signing_seed=PROVIDER_SEED,
@@ -60,7 +63,7 @@ def pq_certificate(serial=1, client_magic=PQ_CLIENT_MAGIC):
 
 
 def issue_ticket(certificate, shared_key, client_nonce, ticket_expiry=0x68000258):
-    """Issue the Appendix 3 ticket for the given shared key and nonce."""
+    """Issue the Appendix C ticket for the given shared key and nonce."""
 
     return d.issue_pq_ticket(
         certificate=certificate,
@@ -77,15 +80,38 @@ class DNSCryptReferenceTests(unittest.TestCase):
     """Vector and round-trip tests for the reference implementation."""
 
     def test_hchacha20_kat(self):
-        """Check the HChaCha20 known-answer test from Appendix 1."""
+        """Check the HChaCha20 known-answer test from Appendix A."""
 
         self.assertEqual(
             d.hchacha20(iota(0x00, 32), iota(0x00, 16)).hex(),
             "51e3ff45a895675c4b33b46c64f4a9ace110d34df6a2ceab486372bacbd3eff6",
         )
 
+    def test_chacha20_counter_carry(self):
+        """Check low-word counter carry against libsodium's original ChaCha20."""
+
+        key = hashlib.shake_256(b"stream-key").digest(32)
+        nonce = hashlib.shake_256(b"stream-nonce").digest(8)
+        plaintext = hashlib.shake_256(b"stream-message").digest(129)
+        expected = bytes.fromhex(
+            "afb968a92a79852966692aef044a5bca96bff9d01a64d2d67d0d6e489fffe3ad2"
+            "53b2c51950b5109107d09d1721b0768e2678e0d2e4337f3ec2b1ba5538f130c9"
+            "bcd93d69941024eeb101ceeb8ee742dbd288f6fafadcf3877735d0f6af52b5357"
+            "29722d54d1ea34fdd11dfe9ba3e83bf678fb17c7d496f3d1cd5d4400e9174c37"
+        )
+        for size in (0, 1, 63, 64, 65, 129):
+            self.assertEqual(
+                d.chacha20_djb(key, nonce, plaintext[:size], 0xFFFFFFFF),
+                expected[:size],
+            )
+        for counter in (-1, 1 << 64):
+            with self.assertRaises(ValueError):
+                d.chacha20_djb(key, nonce, b"", counter)
+        with self.assertRaises(ValueError):
+            d.chacha20_djb(key, nonce, bytes(65), (1 << 64) - 1)
+
     def test_classical_appendix_vector(self):
-        """Check the complete classical DNSCrypt Appendix 2 vector."""
+        """Check the complete classical DNSCrypt Appendix B vector."""
 
         client_sk = iota(0x40, 32)
         client_nonce = iota(0xA0, 12)
@@ -197,7 +223,7 @@ class DNSCryptReferenceTests(unittest.TestCase):
         self.assertEqual(parsed.dnscrypt_query, packet)
 
     def test_xwing_keygen_matches_pq_appendix_digest(self):
-        """Check deterministic X-Wing key generation against Appendix 3."""
+        """Check deterministic X-Wing key generation against Appendix C."""
 
         key_pair = d.xwing_generate_key_pair_derand(RESOLVER_SECRET)
         self.assertEqual(len(key_pair.public_key), d.XWING_PUBLIC_KEY_SIZE)
@@ -207,7 +233,7 @@ class DNSCryptReferenceTests(unittest.TestCase):
         )
 
     def test_pq_appendix_ticket_vector(self):
-        """Check deterministic PQ ticket and resumed-query Appendix 3 values."""
+        """Check deterministic PQ ticket and resumed-query Appendix C values."""
 
         certificate = pq_certificate()
         shared_key = bytes.fromhex(
@@ -284,6 +310,174 @@ class DNSCryptReferenceTests(unittest.TestCase):
             "2bf202dd3f33d38854450e70a02bd1a317a23bf6d79c5dae406787c9c5f34f52",
         )
 
+    def test_pq_appendix_full_query_vector(self):
+        """Decapsulate the independently generated Appendix C ciphertext."""
+
+        ciphertext = bytes.fromhex(
+            Path(__file__).with_name("pq-client-kex.hex").read_text()
+        )
+        self.assertEqual(len(ciphertext), d.XWING_CIPHERTEXT_SIZE)
+        self.assertEqual(
+            hashlib.sha256(ciphertext).hexdigest(),
+            "f6bf3f238e83f24cd444f2887e8fd32d630e07dbe6ca2f2b403aaf5333030c48",
+        )
+        kem_ss = d.xwing_decapsulate(ciphertext, RESOLVER_SECRET)
+        self.assertEqual(
+            kem_ss.hex(),
+            "8dac8602d4ce5e27e81335b54b25fdcaea86e56613214ee0522db4a5e0a38d50",
+        )
+        certificate = pq_certificate()
+        self.assertEqual(
+            d.pq_shared_key(certificate, kem_ss, ciphertext).hex(),
+            "e6d4ab9cffc9b49e2a64d80d7eb2dde280f806b89e834d596ad385b1dd75e9ef",
+        )
+        with patch(
+            "pq.xwing_encapsulate",
+            return_value=d.XWingEncapsulation(kem_ss, ciphertext),
+        ):
+            prepared = d.encrypt_pq_dnscrypt_query(
+                certificate, DNS_QUERY, client_nonce=iota(0xB0, 12)
+            )
+        self.assertEqual(len(prepared.dnscrypt_query), 1220)
+        self.assertEqual(
+            prepared.dnscrypt_query[1140:].hex(),
+            "c41764468cb42d3a837c51234c08be714af49e1a6830ea6da28178e9e280d76b"
+            "ac1b87fd7f56515f2b2cc3d4715aaa42907c282db1edff0bc3b92cd535a710e2"
+            "64859a5bdaf67c17ffa6e1c6f6e02a50",
+        )
+        self.assertEqual(
+            hashlib.sha256(prepared.dnscrypt_query).hexdigest(),
+            "65c3421776283f503779916e7b5c32d0d41c885508ad892b349688db6c901233",
+        )
+        decrypted = d.decrypt_dnscrypt_query(
+            prepared.dnscrypt_query,
+            [d.ResolverCertificate(certificate, RESOLVER_SECRET)],
+        )
+        self.assertEqual(decrypted.client_query, DNS_QUERY)
+        self.assertEqual(decrypted.shared_key, prepared.shared_key)
+
+    def test_zero_response_nonce(self):
+        """A response must not reuse the query's complete AEAD nonce."""
+
+        key = iota(0x40, 32)
+        client_nonce = iota(0xA0, 12)
+        zero = bytes(d.RESOLVER_NONCE_SIZE)
+        with self.assertRaises(ValueError):
+            d.encrypt_dnscrypt_response(DNS_RESPONSE, key, client_nonce, zero)
+        with patch("packets.os.urandom", side_effect=[zero, iota(0xC0, 12)]):
+            response = d.encrypt_dnscrypt_response(DNS_RESPONSE, key, client_nonce)
+        self.assertEqual(response[20:32], iota(0xC0, 12))
+
+        nonce = d.query_nonce(client_nonce)
+        response = d.RESOLVER_MAGIC + nonce + d.xchacha20_djb_poly1305_seal(
+            key, nonce, d.pad_7816_4(DNS_RESPONSE)
+        )
+        with self.assertRaises(d.DecryptionError):
+            d.decrypt_dnscrypt_response(response, key, client_nonce)
+
+    def test_authenticated_padding(self):
+        """Check minimal, unaligned, and malformed padding after authentication."""
+
+        certificate = classical_certificate()
+        resolver = [d.ResolverCertificate(certificate, RESOLVER_SECRET)]
+        prepared = d.encrypt_dnscrypt_query(certificate, iota(0x40, 32), DNS_QUERY)
+        for padding in (b"\x80", b"\x80\x00", b"\x80" + bytes(255)):
+            query = prepared.dnscrypt_query[:52] + d.xchacha20_djb_poly1305_seal(
+                prepared.shared_key,
+                d.query_nonce(prepared.client_nonce),
+                DNS_QUERY + padding,
+            )
+            self.assertEqual(d.decrypt_dnscrypt_query(query, resolver).client_query, DNS_QUERY)
+            nonce = prepared.client_nonce + iota(0xC0, 12)
+            response = d.RESOLVER_MAGIC + nonce + d.xchacha20_djb_poly1305_seal(
+                prepared.shared_key, nonce, DNS_RESPONSE + padding
+            )
+            self.assertEqual(
+                d.decrypt_dnscrypt_response(
+                    response, prepared.shared_key, prepared.client_nonce
+                ),
+                DNS_RESPONSE,
+            )
+        for plaintext in (b"", DNS_QUERY, DNS_QUERY + b"\x80\x01"):
+            query = prepared.dnscrypt_query[:52] + d.xchacha20_djb_poly1305_seal(
+                prepared.shared_key, d.query_nonce(prepared.client_nonce), plaintext
+            )
+            with self.assertRaises(d.PaddingError):
+                d.decrypt_dnscrypt_query(query, resolver)
+
+    def test_incoming_packet_size_bounds(self):
+        """Reject oversized authenticated packets and accept exact allowed bounds."""
+
+        certificate = classical_certificate()
+        resolver = [d.ResolverCertificate(certificate, RESOLVER_SECRET)]
+        prepared = d.encrypt_dnscrypt_query(certificate, iota(0x40, 32), DNS_QUERY)
+        for size in (4096, 4097):
+            plaintext = DNS_QUERY + b"\x80" + bytes(size - 68 - len(DNS_QUERY) - 1)
+            query = prepared.dnscrypt_query[:52] + d.xchacha20_djb_poly1305_seal(
+                prepared.shared_key, d.query_nonce(prepared.client_nonce), plaintext
+            )
+            self.assertEqual(len(query), size)
+            if size == 4096:
+                self.assertEqual(
+                    d.decrypt_dnscrypt_query(query, resolver).client_query, DNS_QUERY
+                )
+            else:
+                with self.assertRaises(d.DecryptionError):
+                    d.decrypt_dnscrypt_query(query, resolver)
+
+        nonce = prepared.client_nonce + iota(0xC0, 12)
+        for size in (4095, 4096):
+            plaintext = DNS_RESPONSE + b"\x80" + bytes(size - 48 - len(DNS_RESPONSE) - 1)
+            response = d.RESOLVER_MAGIC + nonce + d.xchacha20_djb_poly1305_seal(
+                prepared.shared_key, nonce, plaintext
+            )
+            self.assertEqual(len(response), size)
+            if size == 4095:
+                self.assertEqual(
+                    d.decrypt_dnscrypt_response(
+                        response, prepared.shared_key, prepared.client_nonce
+                    ),
+                    DNS_RESPONSE,
+                )
+            else:
+                with self.assertRaises(d.DecryptionError):
+                    d.decrypt_dnscrypt_response(
+                        response, prepared.shared_key, prepared.client_nonce
+                    )
+
+    def test_incoming_pq_packet_size_bounds(self):
+        """Apply the same query bound to full and resumed PQ packets."""
+
+        certificate = pq_certificate()
+        full = d.encrypt_pq_dnscrypt_query(certificate, DNS_QUERY)
+        issued = issue_ticket(certificate, full.shared_key, full.client_nonce)
+        resumed = d.encrypt_pq_resume_query(
+            issued.ticket, issued.resume_secret, certificate.client_magic, DNS_QUERY
+        )
+        for prepared, header_size in ((full, 1140), (resumed, 152)):
+            def open_query(query):
+                if prepared is full:
+                    return d.decrypt_dnscrypt_query(
+                        query, [d.ResolverCertificate(certificate, RESOLVER_SECRET)]
+                    )
+                return d.decrypt_pq_resume_query(
+                    query, [TICKET_KEY], [certificate], 0x68000100
+                )
+
+            for size in (4096, 4097):
+                plaintext = DNS_QUERY + b"\x80" + bytes(
+                    size - header_size - d.TAG_SIZE - len(DNS_QUERY) - 1
+                )
+                query = prepared.dnscrypt_query[:header_size] + d.xchacha20_djb_poly1305_seal(
+                    prepared.shared_key, d.query_nonce(prepared.client_nonce), plaintext
+                )
+                self.assertEqual(len(query), size)
+                if size == 4096:
+                    self.assertEqual(open_query(query).client_query, DNS_QUERY)
+                else:
+                    with self.assertRaises(d.DecryptionError):
+                        open_query(query)
+
     def test_certificate_retrieval_amplification(self):
         """Check the certificate retrieval anti-amplification size rule."""
 
@@ -353,6 +547,19 @@ class DNSCryptReferenceTests(unittest.TestCase):
         self.assertFalse(rollover[2] & 0x02)
         self.assertLessEqual(len(rollover), len(rollover_query))
 
+        long_name = "2.dnscrypt-cert." + ".".join(["x" * 63] * 3 + ["x" * 45])
+        self.assertEqual(len(d.certificate_query(long_name)), 271)
+        for over_tcp, via_relay in ((False, False), (False, True), (True, True)):
+            query = d.certificate_query_for_transport(
+                long_name, over_tcp=over_tcp, via_relay=via_relay
+            )
+            response = d.serve_certificates(
+                query, [classical, classical], [pq, pq], over_udp=True
+            )
+            self.assertEqual(len(response), 3221)
+            self.assertFalse(response[2] & 0x02)
+            self.assertLessEqual(len(response), len(query))
+
     def test_pq_full_and_resumed_round_trip(self):
         """Check randomized full-PQ and resumed-query round trips."""
 
@@ -387,6 +594,8 @@ class DNSCryptReferenceTests(unittest.TestCase):
         )
         self.assertEqual(opened_response.control, issued.control)
         self.assertEqual(opened_response.resolver_response, DNS_RESPONSE)
+        self.assertEqual(opened_response.ticket.ticket, issued.ticket)
+        self.assertEqual(opened_response.ticket.ticket_lifetime, 300)
 
         resumed = d.encrypt_pq_resume_query(
             ticket=issued.ticket,
@@ -404,8 +613,92 @@ class DNSCryptReferenceTests(unittest.TestCase):
         self.assertEqual(opened_resume.client_query, DNS_QUERY)
         self.assertEqual(opened_resume.shared_key, resumed.shared_key)
 
+    def test_pq_ticket_renewal(self):
+        """Renew a ticket using the answered resumed query's key and nonce."""
+
+        certificate = pq_certificate()
+        full = d.encrypt_pq_dnscrypt_query(certificate, DNS_QUERY)
+        issued = issue_ticket(certificate, full.shared_key, full.client_nonce)
+        resumed = d.encrypt_pq_resume_query(
+            issued.ticket, issued.resume_secret, certificate.client_magic, DNS_QUERY
+        )
+        opened = d.decrypt_pq_resume_query(
+            resumed.dnscrypt_query, [TICKET_KEY], [certificate], now=0x68000258
+        )
+        renewed = d.issue_pq_ticket(
+            certificate=opened.certificate,
+            shared_key=opened.shared_key,
+            client_nonce=opened.client_nonce,
+            ticket_key=TICKET_KEY,
+            ticket_nonce=iota(0xE0, 24),
+            ticket_expiry=0x68000384,
+            ticket_lifetime=300,
+        )
+        response = d.encrypt_pq_dnscrypt_response(
+            DNS_RESPONSE, opened.shared_key, opened.client_nonce, control=renewed.control
+        )
+        received = d.decrypt_pq_dnscrypt_response(
+            response, resumed.shared_key, resumed.client_nonce
+        )
+        resume_secret = d.pq_resume_secret(
+            resumed.shared_key, certificate.client_magic, resumed.client_nonce
+        )
+        self.assertEqual(resume_secret, renewed.resume_secret)
+        self.assertNotEqual(resume_secret, issued.resume_secret)
+        self.assertEqual(received.resolver_response, DNS_RESPONSE)
+        self.assertEqual(received.ticket.ticket, renewed.ticket)
+
+        next_query = d.encrypt_pq_resume_query(
+            received.ticket.ticket, resume_secret, certificate.client_magic, DNS_QUERY
+        )
+        next_opened = d.decrypt_pq_resume_query(
+            next_query.dnscrypt_query, [TICKET_KEY], [certificate], now=0x68000259
+        )
+        self.assertEqual(next_opened.client_query, DNS_QUERY)
+        self.assertEqual(next_opened.shared_key, next_query.shared_key)
+        self.assertEqual(next_opened.certificate, certificate)
+        with self.assertRaises(d.DecryptionError):
+            d.decrypt_pq_resume_query(
+                resumed.dnscrypt_query, [TICKET_KEY], [certificate], now=0x68000259
+            )
+
+    def test_pq_control_validation(self):
+        """Ignore unknown controls and reject malformed version 1 tickets."""
+
+        key = iota(0x40, 32)
+        nonce = iota(0xA0, 12)
+        valid = d.PQ_CONTROL_MAGIC + b"\x01" + (300).to_bytes(4, "big") + b"\x00\x01x"
+        self.assertEqual(d.parse_pq_control(valid), d.PQTicketControl(300, b"x"))
+        for control in (b"", b"other", d.PQ_CONTROL_MAGIC + b"\x02"):
+            response = d.encrypt_pq_dnscrypt_response(
+                DNS_RESPONSE, key, nonce, control=control
+            )
+            opened = d.decrypt_pq_dnscrypt_response(response, key, nonce)
+            self.assertEqual(opened.resolver_response, DNS_RESPONSE)
+            self.assertIsNone(opened.ticket)
+        malformed = (
+            d.PQ_CONTROL_MAGIC,
+            valid[:5],
+            valid[:10],
+            valid[:-1],
+            valid + b"x",
+            valid[:5] + bytes(4) + valid[9:],
+            valid[:9] + bytes(2),
+        )
+        for control in malformed:
+            with self.subTest(control=control.hex()):
+                response = d.encrypt_pq_dnscrypt_response(
+                    DNS_RESPONSE, key, nonce, control=control
+                )
+                with self.assertRaises(d.DecryptionError):
+                    d.decrypt_pq_dnscrypt_response(response, key, nonce)
+        for plaintext in (b"", b"\x00", b"\x00\x01"):
+            response = d.encrypt_dnscrypt_response(plaintext, key, nonce)
+            with self.assertRaises(d.DecryptionError):
+                d.decrypt_pq_dnscrypt_response(response, key, nonce)
+
     def test_certificate_query_and_response_vectors(self):
-        """Check the Appendix 2 certificate retrieval vectors byte for byte."""
+        """Check the Appendix B certificate retrieval vectors byte for byte."""
 
         provider_name = "2.dnscrypt-cert.example.com"
         query = d.certificate_query(provider_name, query_id=b"\xab\xcd")
@@ -462,12 +755,43 @@ class DNSCryptReferenceTests(unittest.TestCase):
     def test_client_magic_signing_constraints(self):
         """Reject reserved client-magic values at signing time."""
 
-        for client_magic in (b"\x00" * 7 + b"\x01", d.RESUME_MAGIC):
+        for client_magic in (b"\x00" * 7 + b"\x01", b"\xff" * 8, d.RESUME_MAGIC):
             with self.assertRaises(d.CertificateError):
                 classical_certificate(client_magic=client_magic)
+            certificate = replace(classical_certificate(), client_magic=client_magic)
+            certificate = replace(
+                certificate,
+                signature=d.ed25519_sign(PROVIDER_SEED, certificate.signed_data()),
+            )
+            with self.assertRaises(d.CertificateError):
+                certificate.verify(d.ed25519_public_key_from_seed(PROVIDER_SEED))
+
+    def test_certificate_txt_character_strings(self):
+        """Reassemble both certificate sizes and reject truncated TXT strings."""
+
+        for certificate in (classical_certificate(), pq_certificate()):
+            raw = certificate.to_bytes()
+            rdata = b"".join(
+                bytes([len(raw[i : i + 255])]) + raw[i : i + 255]
+                for i in range(0, len(raw), 255)
+            )
+            self.assertEqual(d.DNSCryptCertificate.from_txt_rdata(rdata), certificate)
+            with self.assertRaises(d.CertificateError):
+                d.DNSCryptCertificate.from_txt_rdata(rdata[:-1])
+        with self.assertRaises(d.CertificateError):
+            d.DNSCryptCertificate.from_txt_rdata(b"")
+
+    def test_certificate_query_arguments(self):
+        """Reject caller inputs that cannot form a valid DNS question."""
+
+        for query_id in (b"", b"a", b"abc"):
+            with self.assertRaises(ValueError):
+                d.certificate_query("2.dnscrypt-cert.example.com", query_id)
+        with self.assertRaises(ValueError):
+            d.certificate_query(".".join(["x" * 63] * 4))
 
     def test_classical_negative_cases(self):
-        """Check Appendix 2 negative cases 1, 3, and 5."""
+        """Check Appendix B negative cases 1, 3, and 5."""
 
         certificate = classical_certificate(ts_start=1, ts_end=2)
         resolver = [
@@ -494,7 +818,7 @@ class DNSCryptReferenceTests(unittest.TestCase):
             d.decrypt_dnscrypt_query(bytes(low_order), resolver)
 
     def test_pq_negative_cases(self):
-        """Check Appendix 3 negative cases for tickets and KEM ciphertexts."""
+        """Check Appendix C negative cases for tickets and KEM ciphertexts."""
 
         certificate = pq_certificate()
         resolver = [
@@ -568,7 +892,7 @@ class DNSCryptReferenceTests(unittest.TestCase):
             )
 
     def test_pq_profile_extension_negative_cases(self):
-        """Check Appendix 3 negative cases 1 and 2 for the profile extension."""
+        """Check Appendix C negative cases 1 and 2 for the profile extension."""
 
         # A PQ certificate without the required extension cannot be used to
         # encrypt, even if the caller never ran verify().
@@ -592,6 +916,11 @@ class DNSCryptReferenceTests(unittest.TestCase):
             d.parse_pq_profile_extension(d.pq_profile_extension(resolver_pk_len=1217))
         with self.assertRaises(d.CertificateError):
             d.parse_pq_profile_extension(d.pq_profile_extension(client_kex_len=1121))
+        for offset in (0, 3, 6, 7):
+            extension = bytearray(d.pq_profile_extension())
+            extension[offset] ^= 1
+            with self.assertRaises(d.CertificateError):
+                d.parse_pq_profile_extension(bytes(extension))
 
     def test_relay_validation(self):
         """Check the Anonymized DNSCrypt relay validation rules."""

@@ -159,10 +159,20 @@ class DNSCryptCertificate:
         """Verify the signature, validity interval shape, and PQ extension."""
 
         ed25519_verify(provider_public_key, self.signature, self.signed_data())
+        self._check_client_magic()
         if self.ts_start >= self.ts_end:
             raise CertificateError("certificate validity start must precede end")
         if self.es_version == ES_VERSION_XWING:
             parse_pq_profile_extension(self.extensions, self.es_version)
+
+    def _check_client_magic(self) -> None:
+        require_size("client_magic", self.client_magic, CLIENT_MAGIC_SIZE)
+        if self.client_magic.startswith(b"\x00" * 7):
+            raise CertificateError("client-magic must not start with 7 zero bytes")
+        if self.client_magic == b"\xff" * CLIENT_MAGIC_SIZE:
+            raise CertificateError("client-magic must not be all 0xff")
+        if self.client_magic == RESUME_MAGIC:
+            raise CertificateError("client-magic must not equal the resume magic")
 
     @classmethod
     def sign(
@@ -181,11 +191,6 @@ class DNSCryptCertificate:
 
         require_size("es_version", es_version, 2)
         require_size("protocol_minor_version", protocol_minor_version, 2)
-        require_size("client_magic", client_magic, CLIENT_MAGIC_SIZE)
-        if client_magic.startswith(b"\x00" * 7):
-            raise CertificateError("client-magic must not start with 7 zero bytes")
-        if client_magic == RESUME_MAGIC:
-            raise CertificateError("client-magic must not equal the resume magic")
         if len(resolver_pk) != resolver_pk_len_for_es_version(es_version):
             raise CertificateError("resolver-pk length does not match es-version")
         unsigned = cls(
@@ -199,8 +204,24 @@ class DNSCryptCertificate:
             ts_end=ts_end,
             extensions=extensions,
         )
+        unsigned._check_client_magic()
         signature = ed25519_sign(provider_signing_seed, unsigned.signed_data())
         return replace(unsigned, signature=signature)
+
+    @classmethod
+    def from_txt_rdata(cls, rdata: bytes) -> "DNSCryptCertificate":
+        """Parse a certificate after joining one TXT record's character-strings."""
+
+        certificate = bytearray()
+        offset = 0
+        while offset < len(rdata):
+            size = rdata[offset]
+            offset += 1
+            if offset + size > len(rdata):
+                raise CertificateError("TXT character-string is truncated")
+            certificate.extend(rdata[offset : offset + size])
+            offset += size
+        return cls.from_bytes(bytes(certificate))
 
     @classmethod
     def from_bytes(cls, certificate: bytes) -> "DNSCryptCertificate":

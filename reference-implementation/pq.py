@@ -13,6 +13,7 @@ from certificates import DNSCryptCertificate, parse_pq_profile_extension
 from constants import (
     CLIENT_NONCE_SIZE,
     ES_VERSION_XWING,
+    MAX_DNSCRYPT_PACKET_SIZE,
     MIN_QUERY_PLAINTEXT_LEN,
     PADDING_BLOCK_SIZE,
     PQ_CONTROL_MAGIC,
@@ -46,6 +47,7 @@ __all__ = [
     "IssuedPQTicket",
     "OpenedTicket",
     "PQDecryptedResponse",
+    "PQTicketControl",
     "TicketKey",
     "XWingEncapsulation",
     "XWingKeyPair",
@@ -56,6 +58,7 @@ __all__ = [
     "encrypt_pq_resume_query",
     "issue_pq_ticket",
     "open_pq_ticket",
+    "parse_pq_control",
     "pq_cert_context",
     "pq_resume_secret",
     "pq_resumed_shared_key",
@@ -102,11 +105,20 @@ class IssuedPQTicket:
 
 
 @dataclass(frozen=True)
+class PQTicketControl:
+    """An opaque ticket and the lifetime advertised by the resolver."""
+
+    ticket_lifetime: int
+    ticket: bytes
+
+
+@dataclass(frozen=True)
 class PQDecryptedResponse:
     """A decrypted PQ response split into control data and DNS response."""
 
     control: bytes
     resolver_response: bytes
+    ticket: PQTicketControl | None
 
 
 @dataclass(frozen=True)
@@ -150,12 +162,7 @@ def _xwing_combiner(ss_m: bytes, ss_x: bytes, ct_x: bytes, pk_x: bytes) -> bytes
 
 
 def _x25519(sk: x25519.X25519PrivateKey, public_bytes: bytes) -> bytes:
-    """RFC 7748 X25519 without the low-order rejection X-Wing forgoes.
-
-    pyca refuses to return an all-zero shared point, but X-Wing relies on
-    implicit rejection instead: a low-order point must yield a garbage shared
-    secret so authentication fails with no distinguishable error or timing.
-    """
+    """Return the all-zero result for low-order X25519 inputs, as X-Wing requires."""
 
     try:
         return sk.exchange(x25519.X25519PublicKey.from_public_bytes(public_bytes))
@@ -238,7 +245,7 @@ def encrypt_pq_dnscrypt_query(
     """Construct a PQ query carrying a full X-Wing ciphertext.
 
     The plaintext floor is one padding block because the 1120-byte ciphertext
-    already makes the packet far larger than any anti-amplification target.
+    already makes the packet exceed the initial 256-byte query-size target.
     """
 
     if certificate.es_version != ES_VERSION_XWING:
@@ -273,7 +280,7 @@ def encrypt_pq_dnscrypt_query(
 def pq_resume_secret(
     shared_key: bytes, client_magic: bytes, client_nonce: bytes
 ) -> bytes:
-    """Derive the resumption secret after a full PQ query."""
+    """Derive a ticket's resumption secret from the answered PQ query."""
 
     return hkdf_sha256(
         ikm=shared_key,
@@ -304,6 +311,8 @@ def issue_pq_ticket(
     require_size("ticket_nonce", ticket_nonce, TICKET_NONCE_SIZE)
     if ticket_expiry > certificate.ts_end:
         raise ValueError("ticket_expiry must not exceed the certificate ts_end")
+    if not 1 <= ticket_lifetime <= 0xFFFFFFFF:
+        raise ValueError("ticket_lifetime must be a positive 32-bit value")
     resume_secret = pq_resume_secret(shared_key, certificate.client_magic, client_nonce)
     ticket_plain = (
         resume_secret
@@ -352,6 +361,26 @@ def encrypt_pq_dnscrypt_response(
     )
 
 
+def parse_pq_control(control: bytes) -> PQTicketControl | None:
+    """Read a version 1 ticket or ignore an absent or unknown control format."""
+
+    if not control.startswith(PQ_CONTROL_MAGIC):
+        return None
+    if len(control) < 5:
+        raise DecryptionError("PQ control version is missing")
+    if control[4] != PQ_CONTROL_VERSION:
+        return None
+    if len(control) < 11:
+        raise DecryptionError("PQ ticket control is truncated")
+    ticket_lifetime = int.from_bytes(control[5:9], "big")
+    ticket_len = int.from_bytes(control[9:11], "big")
+    if ticket_len == 0 or ticket_lifetime == 0:
+        raise DecryptionError("PQ ticket and lifetime must not be empty")
+    if len(control) != 11 + ticket_len:
+        raise DecryptionError("PQ ticket length does not match the control block")
+    return PQTicketControl(ticket_lifetime, control[11:])
+
+
 def decrypt_pq_dnscrypt_response(
     dnscrypt_response: bytes,
     shared_key: bytes,
@@ -367,9 +396,11 @@ def decrypt_pq_dnscrypt_response(
     control_len = int.from_bytes(plaintext[:2], "big")
     if len(plaintext) < 2 + control_len:
         raise DecryptionError("PQ control block is truncated")
+    control = plaintext[2 : 2 + control_len]
     return PQDecryptedResponse(
-        control=plaintext[2 : 2 + control_len],
+        control=control,
         resolver_response=plaintext[2 + control_len :],
+        ticket=parse_pq_control(control),
     )
 
 
@@ -476,6 +507,8 @@ def decrypt_pq_resume_query(
 ) -> DecryptedQuery:
     """Open a resumed PQ query after validating its ticket context."""
 
+    if len(pq_resume_query) > MAX_DNSCRYPT_PACKET_SIZE:
+        raise DecryptionError("complete encrypted query exceeds 4096 bytes")
     if not pq_resume_query.startswith(RESUME_MAGIC):
         raise DecryptionError("invalid resume magic")
     if len(pq_resume_query) < len(RESUME_MAGIC) + 2:

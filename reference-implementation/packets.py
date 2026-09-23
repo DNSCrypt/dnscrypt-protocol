@@ -10,6 +10,7 @@ from constants import (
     CLIENT_MAGIC_SIZE,
     CLIENT_NONCE_SIZE,
     ES_VERSION_XCHACHA20POLY1305,
+    MAX_DNSCRYPT_PACKET_SIZE,
     MIN_QUERY_PLAINTEXT_LEN,
     NONCE_SIZE,
     PADDING_BLOCK_SIZE,
@@ -81,6 +82,8 @@ def decrypt_dnscrypt_query(
 ) -> DecryptedQuery:
     """Open `<dnscrypt-query>` at a resolver."""
 
+    if len(dnscrypt_query) > MAX_DNSCRYPT_PACKET_SIZE:
+        raise DecryptionError("complete encrypted query exceeds 4096 bytes")
     client_magic = dnscrypt_query[:CLIENT_MAGIC_SIZE]
     match = next(
         (
@@ -137,9 +140,13 @@ def encrypt_dnscrypt_response(
     """
 
     if resolver_nonce is None:
-        resolver_nonce = os.urandom(RESOLVER_NONCE_SIZE)
+        resolver_nonce = b"\x00" * RESOLVER_NONCE_SIZE
+        while not any(resolver_nonce):
+            resolver_nonce = os.urandom(RESOLVER_NONCE_SIZE)
     require_size("client_nonce", client_nonce, CLIENT_NONCE_SIZE)
     require_size("resolver_nonce", resolver_nonce, RESOLVER_NONCE_SIZE)
+    if not any(resolver_nonce):
+        raise ValueError("resolver_nonce must not be all zero")
     nonce = client_nonce + resolver_nonce
     plaintext = pad_7816_4(resolver_response, min_plaintext_len)
     encrypted_response = xchacha20_djb_poly1305_seal(shared_key, nonce, plaintext)
@@ -156,6 +163,8 @@ def decrypt_dnscrypt_response(
     """Open `<dnscrypt-response>` and return `<resolver-response>`."""
 
     require_size("expected_client_nonce", expected_client_nonce, CLIENT_NONCE_SIZE)
+    if len(dnscrypt_response) >= MAX_DNSCRYPT_PACKET_SIZE:
+        raise DecryptionError("complete encrypted response must be smaller than 4096 bytes")
     header_len = len(RESOLVER_MAGIC) + NONCE_SIZE
     if len(dnscrypt_response) < header_len + TAG_SIZE:
         raise DecryptionError("response is too short")
@@ -164,6 +173,8 @@ def decrypt_dnscrypt_response(
     nonce = dnscrypt_response[len(RESOLVER_MAGIC) : header_len]
     if nonce[:CLIENT_NONCE_SIZE] != expected_client_nonce:
         raise DecryptionError("response client-nonce does not match query")
+    if not any(nonce[CLIENT_NONCE_SIZE:]):
+        raise DecryptionError("response resolver-nonce is all zero")
     plaintext = xchacha20_djb_poly1305_open(
         shared_key, nonce, dnscrypt_response[header_len:]
     )

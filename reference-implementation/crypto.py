@@ -61,7 +61,7 @@ def _quarter_round(state: list[int], a: int, b: int, c: int, d: int) -> None:
 
 
 def hchacha20(k: bytes, input16: bytes) -> bytes:
-    """HChaCha20 as specified in Appendix 1."""
+    """HChaCha20 as specified in Appendix A."""
 
     require_size("k", k, 32)
     require_size("input16", input16, 16)
@@ -100,12 +100,27 @@ def chacha20_djb(key: bytes, nonce8: bytes, data: bytes, counter: int = 0) -> by
 
     require_size("key", key, 32)
     require_size("nonce8", nonce8, 8)
-    nonce = counter.to_bytes(8, "little") + nonce8
-    return Cipher(algorithms.ChaCha20(key, nonce), mode=None).encryptor().update(data)
+    if not 0 <= counter < 1 << 64:
+        raise ValueError("counter must fit in 64 bits")
+    if len(data) > ((1 << 64) - counter) * 64:
+        raise ValueError("data would overflow the ChaCha20 block counter")
+    output = bytearray()
+    while data:
+        # OpenSSL stops at a carry from the low 32 bits of the counter.
+        chunk_len = min(len(data), ((1 << 32) - (counter & 0xFFFFFFFF)) * 64)
+        nonce = counter.to_bytes(8, "little") + nonce8
+        output.extend(
+            Cipher(algorithms.ChaCha20(key, nonce), mode=None)
+            .encryptor()
+            .update(data[:chunk_len])
+        )
+        data = data[chunk_len:]
+        counter += (chunk_len + 63) // 64
+    return bytes(output)
 
 
 def _xchacha20_djb_poly1305(k: bytes, nonce: bytes, data: bytes) -> tuple[bytes, bytes]:
-    """Run XChaCha20_DJB over `<zero32> || data` as in Appendix 1.
+    """Run XChaCha20_DJB over `<zero32> || data` as in Appendix A.
 
     The first 32 output bytes are the one-time Poly1305 key; the rest is the
     input combined with the keystream that immediately follows it.

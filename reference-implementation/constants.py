@@ -23,7 +23,7 @@ PADDING_BLOCK_SIZE = 64
 # Plaintext padding floor used by this reference implementation. The spec's
 # <min-query-len> target covers the complete encrypted packet; padding the
 # plaintext to 256 bytes keeps the packet above the initial 256-byte target
-# for every encryption system, and matches the Appendix 2 and 3 vectors.
+# for every encryption system, and matches the Appendix B and C vectors.
 MIN_QUERY_PLAINTEXT_LEN = 256
 
 # Complete encrypted queries must not exceed this size, and complete encrypted
@@ -55,4 +55,3 @@ DNS_CLASS_IN = 0x0001
 EDNS_PADDING_OPTION_CODE = 0x000C
 EDNS_UDP_PAYLOAD_SIZE = 4096
 CERTIFICATE_RECORD_TTL = 86400
-
