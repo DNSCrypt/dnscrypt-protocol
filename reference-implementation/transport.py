@@ -6,7 +6,15 @@ import ipaddress
 from dataclasses import dataclass
 from typing import Container
 
-from constants import ANON_MAGIC, MAX_DNSCRYPT_PACKET_SIZE, QUIC_MAGIC
+from constants import (
+    ANON_MAGIC,
+    DNS_HEADER_SIZE,
+    MAX_DNSCRYPT_PACKET_SIZE,
+    NONCE_SIZE,
+    QUIC_MAGIC,
+    RESOLVER_MAGIC,
+    TAG_SIZE,
+)
 from errors import AmplificationError, RelayError, WireFormatError
 
 __all__ = [
@@ -17,6 +25,7 @@ __all__ = [
     "parse_anonymized_dnscrypt_query",
     "read_tcp_packet",
     "relay_certificate_response",
+    "relay_encrypted_response",
     "tcp_packet",
     "validate_relay_query",
 ]
@@ -125,4 +134,17 @@ def relay_certificate_response(
 
     if len(upstream_response) > len(forwarded_query):
         raise AmplificationError("certificate response is larger than the query")
+    return upstream_response
+
+
+def relay_encrypted_response(forwarded_query: bytes, upstream_response: bytes) -> bytes:
+    """Forward an encrypted response only if it looks valid and is no larger than the forwarded query."""
+
+    if len(upstream_response) > len(forwarded_query):
+        raise AmplificationError("encrypted response is larger than the query")
+    # Even the smallest response holds a DNS header and the padding delimiter.
+    if len(upstream_response) < len(RESOLVER_MAGIC) + NONCE_SIZE + TAG_SIZE + DNS_HEADER_SIZE + 1:
+        raise RelayError("encrypted response is too short")
+    if not upstream_response.startswith(RESOLVER_MAGIC):
+        raise RelayError("invalid resolver magic")
     return upstream_response
