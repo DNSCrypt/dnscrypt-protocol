@@ -960,6 +960,39 @@ class DNSCryptReferenceTests(unittest.TestCase):
                 )
             )
 
+    def test_relayed_tcp_pq_queries_leave_room_for_response(self):
+        """A relay drops responses larger than the query, so PQ queries sent to it over TCP use the maximum size."""
+
+        certificate = pq_certificate()
+        full = d.encrypt_pq_dnscrypt_query(certificate, DNS_QUERY)
+        full_header_len = d.CLIENT_MAGIC_SIZE + d.XWING_CIPHERTEXT_SIZE + d.CLIENT_NONCE_SIZE
+        relayed_full = d.encrypt_pq_dnscrypt_query(
+            certificate,
+            DNS_QUERY,
+            min_plaintext_len=d.MAX_DNSCRYPT_PACKET_SIZE - full_header_len - d.TAG_SIZE,
+        )
+        issued = issue_ticket(certificate, full.shared_key, full.client_nonce)
+        resume_args = (issued.ticket, issued.resume_secret, certificate.client_magic, DNS_QUERY)
+        resumed_header_len = len(d.RESUME_MAGIC) + 2 + len(issued.ticket) + d.CLIENT_NONCE_SIZE
+        resumed = d.encrypt_pq_resume_query(*resume_args)
+        relayed_resumed = d.encrypt_pq_resume_query(
+            *resume_args,
+            min_plaintext_len=d.MAX_DNSCRYPT_PACKET_SIZE - resumed_header_len - d.TAG_SIZE,
+        )
+        response = d.encrypt_pq_dnscrypt_response(
+            DNS_RESPONSE, full.shared_key, full.client_nonce, min_plaintext_len=2048
+        )
+        for default, relayed in ((full, relayed_full), (resumed, relayed_resumed)):
+            self.assertEqual(len(relayed.dnscrypt_query), d.MAX_DNSCRYPT_PACKET_SIZE)
+            self.assertEqual(d.relay_encrypted_response(relayed.dnscrypt_query, response), response)
+            with self.assertRaises(d.AmplificationError):
+                d.relay_encrypted_response(default.dnscrypt_query, response)
+
+        with self.assertRaises(d.RelayError):
+            d.relay_encrypted_response(relayed_full.dnscrypt_query, response[:60])
+        with self.assertRaises(d.RelayError):
+            d.relay_encrypted_response(relayed_full.dnscrypt_query, bytes(len(response)))
+
     def test_packet_size_bounds(self):
         """Complete queries stay within 4096 bytes, responses below it."""
 
