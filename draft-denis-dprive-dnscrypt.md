@@ -369,9 +369,10 @@ They MAY adjust the target as response sizes and path limits become known.
 The target MUST stay within the transport size limits.
 Full PQ queries use the padding rule in {{pq-padding}}.
 
-For TCP queries, a client SHOULD add a random padding component to reduce length-based identification of repeated queries.
+For TCP queries sent directly to a resolver, a client SHOULD add a random padding component to reduce length-based identification of repeated queries.
 
 The UDP minimum does not apply.
+{{relay-behavior}} gives the padding for queries sent to a relay over TCP.
 
 For responses, the resolver SHOULD round the padded plaintext length to a multiple of 64 and SHOULD use between 1 and 256 padding bytes, including the delimiter.
 
@@ -535,6 +536,12 @@ An encrypted query's padding similarly determines the response budget on the rel
 If an encrypted DNS response is truncated, a client can retry with a larger padded inner query, within the UDP limit.
 
 Using TCP to the relay alone does not increase that budget or provide TCP to the resolver.
+A client sending an encrypted query to a relay over TCP SHOULD therefore pad the complete inner query to 4096 bytes.
+This applies to all encryption systems, including PQ queries with a KEM ciphertext and resumed queries.
+Otherwise, a response truncated over UDP can be truncated again over TCP.
+
+Such an inner query is usually fragmented between the relay and the resolver.
+A client SHOULD NOT use a relay to reach a resolver known to drop fragmented UDP queries.
 
 Clients SHOULD choose a relay and resolver operated by different organizations, preferably on different networks.
 
@@ -715,6 +722,7 @@ A client SHOULD use a configurable UDP payload target, initially 1232 bytes, and
 For a relayed query, the 28-byte relay prefix counts toward this target on the client-to-relay connection.
 
 The relay-to-resolver connection remains UDP and its response budget is the size of the inner query, as described in {{relay-behavior}}.
+PQ queries sent to a relay over TCP use the padding in {{relay-behavior}}.
 
 ## Stateless Resumption {#pq-resumption}
 
@@ -838,7 +846,8 @@ The normal requirements for a fresh, nonzero resolver nonce still apply, includi
 
 Resumed UDP queries use the normal query-size target in {{padding}}, initially 256 bytes for the complete DNSCrypt packet.
 
-Through a relay, that inner packet also determines the upstream response budget, even if the client uses TCP to the relay.
+Through a relay, the inner query size also limits the upstream response, even if the client uses TCP to the relay.
+Resumed queries sent to a relay over TCP use the padding in {{relay-behavior}}.
 
 A resolver MUST silently discard a query with an invalid or expired ticket.
 
