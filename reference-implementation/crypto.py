@@ -164,14 +164,13 @@ def query_nonce(client_nonce: bytes) -> bytes:
 
 
 def pad_7816_4(plaintext: bytes, minimum_length: int = 0) -> bytes:
-    """Pad with 0x80 then NUL bytes to a block boundary and optional floor."""
+    """Pad with 0x80 then NUL bytes up to `minimum_length`, or to the next block boundary if the plaintext does not fit."""
 
-    if minimum_length % PADDING_BLOCK_SIZE != 0:
-        raise ValueError("minimum_length must be a multiple of the block size")
-    padded_len = (
-        (len(plaintext) + PADDING_BLOCK_SIZE) // PADDING_BLOCK_SIZE
-    ) * PADDING_BLOCK_SIZE
-    padded_len = max(padded_len, minimum_length)
+    padded_len = minimum_length
+    if len(plaintext) >= minimum_length:
+        padded_len = (
+            (len(plaintext) + PADDING_BLOCK_SIZE) // PADDING_BLOCK_SIZE
+        ) * PADDING_BLOCK_SIZE
     return plaintext + b"\x80" + b"\x00" * (padded_len - len(plaintext) - 1)
 
 
