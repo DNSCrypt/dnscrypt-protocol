@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2026-06-18T03:38:59.203993+00:00",
+  "timestamp": "2026-11-12T05:40:51.034422+00:00",
   "repo": "DNSCrypt/dnscrypt-protocol",
   "labels": [
     {
@@ -276,6 +276,22 @@
           "updatedAt": "2026-06-16T06:57:09Z"
         }
       ]
+    },
+    {
+      "number": 18,
+      "id": "I_kwDOBsvhTs8AAAABeXXjTQ",
+      "title": "Linking Anonymized DNSCrypt queries via client-magic",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/18",
+      "state": "OPEN",
+      "author": "dzwdz",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Hi!\n\nThe end of section 7.2. says that\n\n> [...] clients seeking unlinkability need fresh key material as described in Section 6 and Section 8.9,\n\nso I assume that unlinkability is a goal of the protocol, even if only as an optional feature.\nHowever, I think I've noticed a potential way for a malicious resolver to link together queries made by an Anonymized DNSCrypt client,\none that's not currently covered by the spec - but that could be fixed by imposing more requirements on relays.\n\nBasically, a resolver could return a new certificate with an unique client-magic on every request.\nAs long as the client stores that certificate, all its queries would include the unique client-magic, even if it changes keys and/or relays.\n\n---\n\nOne obvious workaround is to ask for the certificates multiple times, perhaps with a delay, or using multiple relays.\nTo work around *that*, the malicious resolver could instead only rotate its certificates every e.g. 5 minutes.\n\nThis would make tracking less accurate - your queries would be mixed together with other people who requested a cert around that time[^1] - but every time you ask for a certificate (every reboot?) you'll likely land in another \"group\" of users, so long-term correlation should still be possible.\n\nFor example, if queries for personal-server.net are correlated with queries for naughty.example.com, over multiple client-magics issued over a long period of time, then I'm most likely up to something naughty :) The alternative - that someone else consistently asked for new certificates at the same time as me - is unlikely.\n\n[^1]: ...assuming there are no other ways to fingerprint them - but e.g. one user might use a client that generates new keys for every query, while another user uses Stateless Resumption or similar. Besides, how often do clients request new certificates anyways?\n\n---\n\nYou could instead mitigate this by making the relays cache certificates for a sufficiently long time. If that time is longer than the period at which clients refresh their certificates - then all users of that relay should be using the same cert, which should make them indistinguishable.\n\nThat's still fallible, though. If the cache size is limited, it could be flooded to force eviction of your old certificate. If it isn't - then that's a DoS vector. Perhaps they could reserve space in the cache for each server in the public resolver list?\n\nI'll admit I don't know what guarantees should make here. Amending section 7.2. from\n\n> A relay MAY cache a validated certificate response briefly and reuse it for an identical certificate query to the same resolver.\n\nto\n\n> A relay SHOULD cache validated certificate responses for as long as possible, and reuse them for identical certificate query to the same resolver.\n\ncould be a good start, but this still leaves relays free to allow early cache eviction (or to not cache anything at all).\nPerhaps relays could advertise stricter protections via stamps, similarly to resolvers?\n",
+      "createdAt": "2026-11-11T16:29:40Z",
+      "updatedAt": "2026-11-11T16:29:40Z",
+      "closedAt": null,
+      "comments": []
     }
   ],
   "pulls": [
