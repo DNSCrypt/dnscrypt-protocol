@@ -72,6 +72,11 @@ relay as follows:
 Queries over UDP are sent as-is. Queries over TCP are prefixed by
 their length, encoded as two bytes in big-endian.
 
+Relays always forward <dnscrypt-query> to servers over UDP, and drop
+responses larger than it. Clients using TCP to reach a relay should
+therefore pad <dnscrypt-query> to 4096 bytes, so that large responses
+can still be received. This also applies to post-quantum queries.
+
 3. Relays
 ---------
 
@@ -95,7 +100,7 @@ relay must immediately respond with an empty packet.
 
 Once a response from the server has been received, the relay:
 
-- must verify that the response is smaller than the query.
+- must verify that the response is not larger than <dnscrypt-query>.
 - may validate that the response:
   - either starts with <resolver-magic>
     (0x72 0x36 0x66 0x6e 0x76 0x57 0x6a 0x38) followed by <client-nonce>
