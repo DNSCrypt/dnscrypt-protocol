@@ -4,8 +4,8 @@
 
 Network Working Group                                           F. Denis
 Internet-Draft                                    Individual Contributor
-Intended status: Informational                           22 October 2026
-Expires: 25 April 2027
+Intended status: Informational                          18 November 2026
+Expires: 22 May 2027
 
 
                          The DNSCrypt Protocol
@@ -51,7 +51,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 25 April 2027.
+   This Internet-Draft will expire on 22 May 2027.
 
 Copyright Notice
 
@@ -380,6 +380,9 @@ Table of Contents
    key and extensions.  The record length determines the extension
    length.
 
+   The signature does not cover <es-version>.  New encryption systems
+   MUST include it in a signed extension, as the PQ profile does.
+
 4.3.  Validation and Selection
 
    For each certificate, the client MUST:
@@ -586,7 +589,9 @@ Table of Contents
 
    For TCP queries sent directly to a resolver, a client SHOULD add a
    random padding component to reduce length-based identification of
-   repeated queries.
+   repeated queries.  The padding, including the delimiter, SHOULD NOT
+   exceed 256 bytes, because some deployed resolvers drop longer padding
+   over TCP.
 
    The UDP minimum does not apply.  Section 7.2 gives the padding for
    queries sent to a relay over TCP.
@@ -1364,6 +1369,12 @@ Table of Contents
    Certificate signatures do not prevent an attacker from suppressing
    newer certificates or replaying an older certificate within its
    validity interval.
+
+   Since <es-version> is not signed, a PQ certificate may pass
+   validation as a Box-XChaChaPoly certificate.  The client then uses a
+   public key that nobody has the secret key for, and the resolver
+   ignores its queries.  This only lets an attacker block queries, which
+   it could already do by dropping the certificate response.
 
    Correct certificate validation also depends on a sufficiently
    accurate local clock.
