@@ -929,13 +929,13 @@ PQ resumption introduces additional key dependencies described in {{pq-security}
 
 Certificate signatures do not prevent an attacker from suppressing newer certificates or replaying an older certificate within its validity interval.
 
-Since `<es-version>` is not signed, a PQ certificate may pass validation as a `Box-XChaChaPoly` certificate.
-The client then uses a public key that nobody has the secret key for, and the resolver ignores its queries.
-This only lets an attacker block queries, which it could already do by dropping the certificate response.
-
 Correct certificate validation also depends on a sufficiently accurate local clock.
 
 Encryption-system downgrade protection requires authenticated provisioning, as described in {{pq-downgrade}}.
+
+Since `<es-version>` is not signed, a PQ certificate may pass validation as a `Box-XChaChaPoly` certificate.
+The resolver ignores queries sent with it, and they only have classical protection.
+This is no worse than removing the PQ certificate, and clients that require PQ never select it.
 
 ## Cryptographic Implementation
 
