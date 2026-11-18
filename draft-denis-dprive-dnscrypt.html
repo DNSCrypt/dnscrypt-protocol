@@ -2396,11 +2396,11 @@ That key and the public fields of a recorded query suffice to recover its shared
 <p id="section-9.1-9">Short-term key rotation limits the exposure only after the old secret key and cached shared keys have been erased.<a href="#section-9.1-9" class="pilcrow">¶</a></p>
 <p id="section-9.1-10">PQ resumption introduces additional key dependencies described in <a href="#pq-security" class="auto internal xref">Section 8.9</a>.<a href="#section-9.1-10" class="pilcrow">¶</a></p>
 <p id="section-9.1-11">Certificate signatures do not prevent an attacker from suppressing newer certificates or replaying an older certificate within its validity interval.<a href="#section-9.1-11" class="pilcrow">¶</a></p>
-<p id="section-9.1-12">Since <code>&lt;es-version&gt;</code> is not signed, a PQ certificate may pass validation as a <code>Box-XChaChaPoly</code> certificate.
-The client then uses a public key that nobody has the secret key for, and the resolver ignores its queries.
-This only lets an attacker block queries, which it could already do by dropping the certificate response.<a href="#section-9.1-12" class="pilcrow">¶</a></p>
-<p id="section-9.1-13">Correct certificate validation also depends on a sufficiently accurate local clock.<a href="#section-9.1-13" class="pilcrow">¶</a></p>
-<p id="section-9.1-14">Encryption-system downgrade protection requires authenticated provisioning, as described in <a href="#pq-downgrade" class="auto internal xref">Section 8.8</a>.<a href="#section-9.1-14" class="pilcrow">¶</a></p>
+<p id="section-9.1-12">Correct certificate validation also depends on a sufficiently accurate local clock.<a href="#section-9.1-12" class="pilcrow">¶</a></p>
+<p id="section-9.1-13">Encryption-system downgrade protection requires authenticated provisioning, as described in <a href="#pq-downgrade" class="auto internal xref">Section 8.8</a>.<a href="#section-9.1-13" class="pilcrow">¶</a></p>
+<p id="section-9.1-14">Since <code>&lt;es-version&gt;</code> is not signed, a PQ certificate may pass validation as a <code>Box-XChaChaPoly</code> certificate.
+The resolver ignores queries sent with it, and they only have classical protection.
+This is no worse than removing the PQ certificate, and clients that require PQ never select it.<a href="#section-9.1-14" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="cryptographic-implementation">
