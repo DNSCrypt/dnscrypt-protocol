@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2026-11-12T05:40:51.034422+00:00",
+  "timestamp": "2026-11-19T05:50:22.752931+00:00",
   "repo": "DNSCrypt/dnscrypt-protocol",
   "labels": [
     {
@@ -292,6 +292,51 @@
       "updatedAt": "2026-11-11T16:29:40Z",
       "closedAt": null,
       "comments": []
+    },
+    {
+      "number": 19,
+      "id": "I_kwDOBsvhTs8AAAABgap9fA",
+      "title": "Certificate encryption system confusion",
+      "url": "https://github.com/DNSCrypt/dnscrypt-protocol/issues/19",
+      "state": "CLOSED",
+      "author": "dzwdz",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Certificate signatures don't cover `es-version`[^0], so a certificate for one encryption system can be presented as a certificate for another one.\n\nFurthermore, for Box-XChaChaPoly, implementations are guided to completely ignore the extensions field:\n\n> Extensions are empty in this revision; unknown extensions are ignored after signature verification.\n\nThis means that, when reinterpreting a longer certificate as a Box-XChaChaPoly certificate, the excess bytes are ignored and don't cause any issues.\n\n[^0]: I assume there's has to be a reason for this, but I wasn't able to find any discussion of this.\n\n---\n\nThere are two ways a certificate could be misinterpreted right now:\n\n1. An X-Wing certificate could be presented as a Box-XChaChaPoly certificate. The X-Wing public key is much larger than X25519's, so parts of it will be reinterpreted as the certificate identifier, serial, timestamps. It's actually quite likely that a client will accept this as a valid certificate. The only requirements are that:\n  a. `ts-start` must be less than the current time. Assuming the current timestamp is 1795000000, and pretending the X-Wing public key consists of uniformly random bytes, the probability of this happening is `ts/2**32 == 0.42`.\n  b. The current time must be less than `ts-end`. The probability here is `(0x8000'0000-ts)/2**32 == 0.08`.\n  c. The serial must be larger than the serial of any legitimate certificate issued by this resolver. Assuming[^1] the legitimate serials are under 0x8000'0000, the probability of this is 50%.\n\n  Continuing under the assumption that the public key bytes can be treated as uniformly random, these events are independent, so the chance of any particular X-Wing certificate meeting these assumptions is around 1.7%. However, \"[resolvers] MUST rotate short-term key pairs at least every 24 hours\", so there should be plenty of certificates to choose from - including expired ones, as the real `ts-end` will just be ignored as part of the extensions field.\n\n2. More trivially, an XSalsa20Poly1305 certificate (still served by some resolvers, e.g. Quad9) could be presented as a Box-XChaChaPoly certificate. The public key length is the same, so the timestamps and serial will be the same as in the real certificate. I don't think this is much of an issue in practice - resolvers seem to issue higher serials for ChaCha certs, so a client will choose the real ChaCha certificate over the reinterpreted Salsa one.\n\n[^1]: Quad9's current Box-XChaChaPoly serial is 0x78c27785. I'm too lazy to check other resolvers, but this seems like a fair assumption, especially if the serials are assigned sequentially.\n\nThis could enable DoS via cache poisoning in some convoluted attack scenarios.\n\nThis also seems like a foot-gun for future expansion. While X25519 doesn't have any classes of \"weak keys\", future encryption systems might.\nFor example, if DNSCrypt started supporting RSA for some reason, and it was possible to reinterpret an X-Wing certificate as an RSA certificate - then the resulting public key would likely be fairly easy to factor. Obviously there's no reason for DNSCrypt to ever start supporting RSA, but perhaps a future PQC system might have a similar issue.\n\n## proposed changes\n\nThere are some ways to solve this without a backwards-incompatible v3:\n\n1. **Reject Box-XChaChaPoly/XSalsa20 certificates that are 1320 bytes or longer**. This would prevent reinterpreting X-Wing certificates as these. I hope this change would be uncontroversial.\n\n2. Use the extensions field (which is signed) to specify the `es-version`, to disambiguate XChaChaPoly/XSalsa (and any future encryption systems). Ideally, you should be able to determine the certificate type without looking at the unsigned `es-version` at all.\nOur options are somewhat limited, since PQDNSCrypt mandates a particular layout for the `extensions` field, and prohibits further expansion:\n\n> For this profile, `<extensions>` **MUST** consist of the following 12 bytes: `<pq-profile-ext> ::= \"PQD\" <ext-version> <es-version> <kdf-id> <aead-id> <resolver-pk-len> <client-kex-len>`\n\nhttps://github.com/DNSCrypt/dnscrypt-protocol/blob/e6fc4e4f7f27616cf33a4777878fdae0b7d97ee0/reference-implementation/certificates.py#L94-L95\n\nThis is awkward, but workable, since no other extensions have been defined yet. Therefore, assuming a similar requirement is added for all certificates, the procedure to determine `es-version` could be specified as:\n```\nif len(cert) < 124+12 {\n  // Legacy certificate.\n  if an unsigned es-version is acceptable {\n    return cert.header.es_version\n  } else {\n    error\n  }\n} else {\n  // We don't yet know where the extensions field starts, so we have to index from the end.\n  es_version = read 2 bytes from cert[len(cert) - 8]\n  if es_version == cert.header.es_version {\n    return es_version\n  } else {\n    error\n  }\n}\n```\nThis is really ugly, but at least it's backwards compatible, it leaves room for future extensions (as long as they come first in the extensions field), and it completely prevents reinterpretation",
+      "createdAt": "2026-11-18T15:19:21Z",
+      "updatedAt": "2026-11-18T18:27:57Z",
+      "closedAt": "2026-11-18T16:05:59Z",
+      "comments": [
+        {
+          "author": "dzwdz",
+          "authorAssociation": "NONE",
+          "body": "btw, because I know how this looks in 2026 - both of my issues are pure human slop ;) No AI was involved.\nBoth of them are things I stumbled onto while working on a toy DNSCrypt implementation.",
+          "createdAt": "2026-11-18T15:22:40Z",
+          "updatedAt": "2026-11-18T15:22:40Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "Not much would happen.\n\nThe client would up with a \"public key\" made of 32 bytes from an ML-KEM key, and nobody knows its X25519 discrete log, not even the resolver.  Queries sent with that certificate can't be decrypted, and responses can't be forged.\n\nAnd the client-magic doesn't match any certificate either, so the resolver would drop these queries.\n\nOnly an adversary who controls the certificate response could use that as a denial of service, but if they can do that, they can just drop the response as well :) And the next successful refresh replaces the bogus certificate.\n\nAnd the reverse direction is already blocked (PQ certs sign their es-version).\n\nBut we can still document this and the fact that new encryption systems must sign their es-version.",
+          "createdAt": "2026-11-18T16:05:43Z",
+          "updatedAt": "2026-11-18T16:05:43Z"
+        },
+        {
+          "author": "dzwdz",
+          "authorAssociation": "NONE",
+          "body": "> Only an adversary who controls the certificate response could use that as a denial of service, but if they can do that, they can just drop the response as well :)\n\nNot necessarily! Consider an Anonymized DNSCrypt client that is configured to use several resolvers and relays, choosing them at random. Let's say one of the relays is malicious, and wants to divert traffic away from some resolvers. If the relay just refuses to forward any traffic to these resolvers, that only affects connections made through that one relay; the client can still connect to the resolvers via other relays. However, if it sends the client a poisoned certificate, then our client will be unable to connect to these resolver through *any* relay, for as long as it keeps the cert cached.\n\nI'm making a few assumptions here:\n- if the client doesn't receive any valid certificates, it will repeat the request via another relay\n  - if the client receives a valid X25519 certificate and no valid PQC certificates, it won't seek out a PQC certificate elsewhere\n- the client doesn't separate certificates by relay (the spec doesn't seem to mandate that)\n\n> And the next successful refresh replaces the bogus certificate.\n\nI thought the client would only change certificates if the new cert has a higher serial (or uses a more preferable encryption system) than the current one, but a more careful reading of the spec reveals that you only consider the certificates returned in the current query. Whoops. (I assumed that revocation works by publishing a certificate with a higher serial.)\n\nI think my point still stands, though? If you're running a malicious relay+resolver, this can help you receive a bit more traffic than you otherwise would.",
+          "createdAt": "2026-11-18T17:06:22Z",
+          "updatedAt": "2026-11-18T17:06:54Z"
+        },
+        {
+          "author": "jedisct1",
+          "authorAssociation": "MEMBER",
+          "body": "I don't think the relay adds anything here.\n\nIn dnscrypt-proxy, the cert gets fetched through a relay, and then all queries to that resolver go through that same relay until the next refresh. So a malicious relay can get the exact same effect by passing the real cert along and then just dropping the queries.\n\nA client fetching certs through one relay and querying through another would lose that resolver until the next refresh. But that's still just availability, and a relay is in the path anyway, so it can always mess with traffic. Pushing queries to another resolver the client already trusts doesn't really count as a security issue.",
+          "createdAt": "2026-11-18T18:27:57Z",
+          "updatedAt": "2026-11-18T18:27:57Z"
+        }
+      ]
     }
   ],
   "pulls": [
