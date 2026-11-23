@@ -222,6 +222,9 @@ This document defines the following encryption systems:
 The certificate has 92 fixed bytes in addition to the resolver public key and extensions.
 The record length determines the extension length.
 
+The signature does not cover `<es-version>`.
+New encryption systems MUST include it in a signed extension, as the PQ profile does.
+
 ## Validation and Selection {#certificate-validation}
 
 For each certificate, the client MUST:
@@ -370,6 +373,7 @@ The target MUST stay within the transport size limits.
 Full PQ queries use the padding rule in {{pq-padding}}.
 
 For TCP queries sent directly to a resolver, a client SHOULD add a random padding component to reduce length-based identification of repeated queries.
+The padding, including the delimiter, SHOULD NOT exceed 256 bytes, because some deployed resolvers drop longer padding over TCP.
 
 The UDP minimum does not apply.
 {{relay-behavior}} gives the padding for queries sent to a relay over TCP.
@@ -928,6 +932,10 @@ Certificate signatures do not prevent an attacker from suppressing newer certifi
 Correct certificate validation also depends on a sufficiently accurate local clock.
 
 Encryption-system downgrade protection requires authenticated provisioning, as described in {{pq-downgrade}}.
+
+Since `<es-version>` is not signed, a PQ certificate may pass validation as a `Box-XChaChaPoly` certificate.
+The resolver ignores queries sent with it, and they only have classical protection.
+This is no worse than removing the PQ certificate, and clients that require PQ never select it.
 
 ## Cryptographic Implementation
 
